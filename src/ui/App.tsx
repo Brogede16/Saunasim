@@ -6,6 +6,7 @@ import { deliveryForms, formats, heatProfiles, intents, materialClass, materials
 import { conditionEffect, conditionStatus } from "../sim/maintenance";
 import { shopItems } from "../sim/shop";
 import { serviceTeamTiers } from "../sim/serviceTeam";
+import { devClockOffsetHours, devNow, resetDevClock, shiftDevClock } from "../dev/devClock";
 
 function useGameState() {
   return useSyncExternalStore(gameStore.subscribe, gameStore.getState, gameStore.getState);
@@ -74,13 +75,21 @@ export function App() {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      setNow(Date.now());
-      gameStore.resolveConstruction();
-      gameStore.resolveRepair();
-      gameStore.resolveMasterSearch();
+      setNow(devNow());
+      gameStore.resolveConstruction(devNow());
+      gameStore.resolveRepair(devNow());
+      gameStore.resolveMasterSearch(devNow());
     }, 1_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  function applyDevClockShift(deltaMs: number) {
+    if (deltaMs !== 0) shiftDevClock(deltaMs);
+    gameStore.resolveConstruction(devNow());
+    gameStore.resolveRepair(devNow());
+    gameStore.resolveMasterSearch(devNow());
+    setNow(devNow());
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -237,6 +246,17 @@ export function App() {
           <p>Your game saves automatically on this device. Export a file only when you want a separate backup or to move the prototype.</p>
           <div><button onClick={downloadSave}>Export save</button><button onClick={() => saveFileInput.current?.click()}>Import save</button><input ref={saveFileInput} aria-label="Import save file" type="file" accept="application/json,.json" hidden onChange={(event) => { void uploadSave(event.target.files?.[0]); event.currentTarget.value = ""; }} /></div>
         </section>
+          {import.meta.env.DEV && <section className="save-panel" aria-label="Dev time travel">
+            <header><span>DEV: TIME TRAVEL</span><small>{devClockOffsetHours() >= 0 ? "+" : ""}{devClockOffsetHours().toFixed(1)}h</small></header>
+            <p>Skips real-time construction/repair/Master-search timers only - never invents game weeks. Dev builds only, never shipped to production.</p>
+            <div>
+              <button onClick={() => applyDevClockShift(-60 * 60 * 1000)}>-1h</button>
+              <button onClick={() => applyDevClockShift(60 * 60 * 1000)}>+1h</button>
+              <button onClick={() => applyDevClockShift(6 * 60 * 60 * 1000)}>+6h</button>
+              <button onClick={() => applyDevClockShift(24 * 60 * 60 * 1000)}>+24h</button>
+              <button onClick={() => { resetDevClock(); applyDevClockShift(0); }}>Reset</button>
+            </div>
+          </section>}
         </>}
         {activePanel === "programs" && <>
         <section className="program-panel" aria-label="Active Aufguss program">
@@ -354,7 +374,7 @@ export function App() {
               const module = modules.find((entry) => entry.id === project.moduleId);
               // `now` triggers the once-per-second re-render; the countdown itself must use the
               // current instant so a just-started three-hour project never displays as four hours.
-              const remainingMs = Math.max(0, project.completesAt - Date.now());
+              const remainingMs = Math.max(0, project.completesAt - devNow());
               const remainingText = remainingMs < 60 * 60 * 1000 ? `${Math.ceil(remainingMs / 60_000)} min` : `${Math.ceil(remainingMs / (60 * 60 * 1000))} h`;
               return <div key={project.moduleId}><span>{module?.name} · {remainingText}</span><button className="action-button" onClick={() => gameStore.rushConstruction(project.moduleId)}>Rush · ${Math.ceil((module?.economy.price ?? 0) * 0.25).toLocaleString("en-US")}</button></div>;
             })}

@@ -337,6 +337,20 @@ Dette retter en svaghed i den forrige, enklere model (én tabel med "Location fa
 
 ---
 
+## 2026-08-26 — Badge-placering rettet + dev-only tidsrejse-værktøj
+
+**1. Badge-placering rettet.** Du havde ret — den viste sig "ved indgangsdøren", ikke over Gus'en. Rettet i [CanalScene.ts](../src/game/CanalScene.ts): over Yard eller Program Sauna når en af dem er bygget (uændret, var allerede korrekt), men nu over selve husets tag (ikke gadedøren) når det er en almindelig indendørs Gus uden dedikeret rum.
+
+**2. Dev-only tidsrejse-værktøj.** Under live-test af badgen løb jeg selv ind i problemet: 3-5 timers rigtig byggetid gør manuel test langsom. Bygget [devClock.ts](../src/dev/devClock.ts) — et lille offset-ur (`devNow() = Date.now() + offset`), og et "DEV: TIME TRAVEL"-panel i Overview med -1h/+1h/+6h/+24h/Reset-knapper. Erstatter kun `Date.now()`-kaldene til konstruktion/reparation/Master-søgning — **opfinder aldrig spiluger** (det er en anden ting, allerede bevidst afvist tidligere).
+
+**Bekræftet fjernet fra production:** `grep` på build-outputtet viser 0 forekomster af "DEV: TIME TRAVEL" — Vites `import.meta.env.DEV`-eliminering fjerner panelet helt, ligesom de eksisterende QA-hooks.
+
+**Live-verificeret begge dele:** badgen viser nu korrekt placering; ét klik på "+6h" fuldførte et 3-timers Reception-Shop-byggeri øjeblikkeligt, uden at betale for at ruske det igennem — offset-visningen viste korrekt "+6.0h".
+
+**Resultat:** `npx vitest run` → 90/90 tests passerer (uændret — ren dev-tooling/rendering, ingen ny simuleringslogik). `tsc -b` ren. Build + bundle-budget OK.
+
+---
+
 ## Verificeret efter disse rettelser (seneste kørsel)
 - `npx vitest run` → 90/90 tests passerer (13 filer)
 - `npx tsc -b` → ingen fejl

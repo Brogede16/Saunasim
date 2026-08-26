@@ -268,8 +268,14 @@ class CanalScene extends Phaser.Scene {
     const seats = snapshot.lastReport?.specialSeats;
     const capacity = snapshot.lastReport?.specialCapacity;
     if (!seats || !capacity) return;
-    const anchor = snapshot.built.includes("aufguss-yard") ? canalAnchor("gus-master-yard") : snapshot.built.includes("program") ? canalAnchor("program-door") : canalAnchor("workshop-door");
-    const point = { x: anchor.x, y: anchor.y - 34 };
+    // Over the dedicated field when one was actually built (the Outdoor Gus Yard or the Program
+    // Sauna's own roof extension) - over the main workshop roof when the Gus is just happening in
+    // the ordinary indoor room, never at the street-level entrance door either way.
+    const point = snapshot.built.includes("aufguss-yard")
+      ? { x: canalAnchor("gus-master-yard").x, y: canalAnchor("gus-master-yard").y - 34 }
+      : snapshot.built.includes("program")
+        ? { x: canalAnchor("program-door").x, y: canalAnchor("program-door").y - 34 }
+        : { x: 320, y: 150 };
     this.occupancyLayer.add(this.add.ellipse(point.x, point.y, 42, 24, colors.steam, 0.92).setStrokeStyle(2, colors.ink));
     this.occupancyLayer.add(this.add.text(point.x, point.y, `${seats}/${capacity}`, { fontFamily: "ui-monospace, monospace", fontSize: "10px", fontStyle: "bold", color: "#20333a" }).setOrigin(0.5));
   }
