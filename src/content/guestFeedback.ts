@@ -79,6 +79,11 @@ export const guestFeedback = {
     "A spare seat opened up and it matched what they were after, so they paid the small extra and joined in.",
     "It was not the plan for today, but the timing and the theme lined up too well to pass up.",
   ],
+  turnedAway: [
+    "They came specifically for the Gus, but the session was already full - a plain sauna visit instead.",
+    "There was no room to book the way they wanted, so the trip did not deliver what they came for.",
+    "Right style, wrong week: the programme they wanted simply had no space left.",
+  ],
 } as const;
 
 export type GuestFeedbackFamily = keyof typeof guestFeedback;

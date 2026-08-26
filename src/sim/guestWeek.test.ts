@@ -147,6 +147,24 @@ describe("Guest week sample", () => {
     expect(withoutWalkUp.some(isWalkUpReaction)).toBe(false);
   });
 
+  it("gives a matching guest a turned-away story only when the ledger reports real unmet Gus demand", () => {
+    const social = { ...starterProgram, intent: "Social Energy" as const, requestedSessions: 4 };
+    const input = { cash: 0, built: [] as const, masterHired: true, admissionPrice: 24, activeProgram: social };
+    const report = simulateCanalWeek(input);
+    expect(report.turnedAwayFromGus).toBeGreaterThan(0);
+    const isTurnedAway = (guest: { reaction: string }) =>
+      guest.reaction.includes("already full") || guest.reaction.includes("no room to book") || guest.reaction.includes("no space left");
+
+    const withSignal = Array.from({ length: 30 }, (_, week) => simulateGuestWeek(input, report, week + 1, social))
+      .flatMap((result) => result.guestSnapshots);
+    expect(withSignal.some(isTurnedAway)).toBe(true);
+
+    const noSignalReport = { ...report, turnedAwayFromGus: undefined };
+    const withoutSignal = Array.from({ length: 30 }, (_, week) => simulateGuestWeek(input, noSignalReport, week + 1, social))
+      .flatMap((result) => result.guestSnapshots);
+    expect(withoutSignal.some(isTurnedAway)).toBe(false);
+  });
+
   it("keeps the sampled guest age within the 18-100 range", () => {
     const input = { cash: 3_350, built: [] as const, masterHired: true, admissionPrice: 24 };
     const report = simulateCanalWeek(input);

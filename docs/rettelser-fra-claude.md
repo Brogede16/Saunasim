@@ -307,8 +307,24 @@ Dette retter en svaghed i den forrige, enklere model (én tabel med "Location fa
 
 ---
 
+## 2026-08-26 — Spejlbillede af walk-up: usolgt Gus-efterspørgsel gjort synlig
+
+**Spørgsmål:** Kan gæster signalere "der er aldrig plads når jeg vil booke" som tegn på stor efterspørgsel? Og findes der en "kæmpe pool af potentielle gæster" der kunne bruges til at skelne stor/lille efterspørgsel?
+
+**Svar på "poolen":** Den findes faktisk allerede — `potentialGuests` (almindelige admissions) og `programDemand` (Gus-specifikt) i `canalBalance.ts` ER den uncappede efterspørgselspool. Der var intet nyt at bygge her, kun noget der manglede at blive vist.
+
+**Implementeret:** Det direkte spejlbillede af walk-up-fyldningen. Når reel Gus-efterspørgsel (`programDemand`) overstiger hvad rummet kan rumme, vises det nu som `WeekReport.turnedAwayFromGus`, en signal-linje ("Gus demand is outrunning capacity...") ved 5+ afviste besøg, og en dedikeret gæste-historie for en gæst der specifikt ville have programmet og ikke kunne få plads.
+
+**Vigtig forskel fra walk-up: ingen balancerisiko overhovedet.** Modsat walk-up-fyldningen ændrer denne funktion **intet økonomisk tal** — den viser blot et gab der altid har eksisteret i den allerede beregnede `programDemand`/`specialCapacity`-sammenligning. Ingen af de 90 eksisterende tests ændrede sig af den grund.
+
+**Live-verificeret:** Rapport-linjen "2 visits wanted this Gus but there was no room this week" virkede korrekt. Selve gæste-historien er igen sjælden nok at jeg ikke fangede den efter et par ugers klik live, men den er bevist med en 30-ugers statistisk test.
+
+**Resultat:** `npx vitest run` → 90/90 tests passerer (2 nye). `tsc -b` ren. Build + bundle-budget OK.
+
+---
+
 ## Verificeret efter disse rettelser (seneste kørsel)
-- `npx vitest run` → 88/88 tests passerer (13 filer)
+- `npx vitest run` → 90/90 tests passerer (13 filer)
 - `npx tsc -b` → ingen fejl
-- `npx vite build` → build lykkes, kodedelt i management-bundle (~423 KB) + separat lazy-loaded Phaser-scene-chunk (1,39 MB)
+- `npx vite build` → build lykkes, kodedelt i management-bundle (~424 KB) + separat lazy-loaded Phaser-scene-chunk (1,39 MB)
 - `node scripts/check-bundle-size.mjs` → management-bundle inden for 450 KB-budgettet

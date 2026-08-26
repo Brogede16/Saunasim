@@ -68,6 +68,7 @@ const gameStateSchema = z.object({
     signal: z.string(),
     recoveryDemand: z.number().int().nonnegative().optional(),
     walkUpSeats: z.number().int().nonnegative().optional(),
+    turnedAwayFromGus: z.number().int().nonnegative().optional(),
     queueLoss: z.number().int().nonnegative().optional(),
     bottleneck: z.string().optional(),
     guestSnapshots: z.array(z.object({

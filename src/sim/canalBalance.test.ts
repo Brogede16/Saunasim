@@ -83,6 +83,17 @@ describe("Canal balance reference", () => {
     expect(plungeOnly.netResult).toBeLessThan(withShower.netResult);
   });
 
+  it("reports real Gus demand the room could not serve, as pure transparency with no economic effect", () => {
+    const social = { ...starterProgram, intent: "Social Energy" as const, requestedSessions: 4 };
+    const withoutSignal = simulateCanalWeek({ cash: 0, built: [], masterHired: true, admissionPrice: 24, activeProgram: starterProgram });
+    const withOverdemand = simulateCanalWeek({ cash: 0, built: [], masterHired: true, admissionPrice: 24, activeProgram: social });
+    expect(withoutSignal.turnedAwayFromGus).toBeUndefined();
+    expect(withOverdemand).toMatchObject({ turnedAwayFromGus: 6, specialOccupancy: 100 });
+    expect(withOverdemand.signal).toContain("turned away");
+    // Same admissions/revenue formula as ever - this field adds a number to look at, not a lever.
+    expect(withOverdemand.admissions).toBe(70);
+  });
+
   it("exposes coldRecoveryQueueLoss so the program builder can preview recovery pressure before running the week", () => {
     const activeProgram = { ...starterProgram, recoveryFinish: "Cold Plunge" as const, requestedSessions: 1 };
     const plungeOnly = { cash: 0, built: ["cold-plunge"] as const, masterHired: true, admissionPrice: 24, activeProgram };

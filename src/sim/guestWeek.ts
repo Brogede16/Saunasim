@@ -135,7 +135,7 @@ function has(input: BalanceInput, id: BalanceInput["built"][number]) {
 }
 
 /** Creates a stable, readable sample of the guests behind the aggregate weekly ledger. */
-export function simulateGuestWeek(input: BalanceInput, report: Pick<WeekReport, "admissions" | "specialSeats" | "shopSales" | "queueLoss" | "bottleneck" | "walkUpSeats">, week: number, program?: ActiveProgram): GuestWeekResult {
+export function simulateGuestWeek(input: BalanceInput, report: Pick<WeekReport, "admissions" | "specialSeats" | "shopSales" | "queueLoss" | "bottleneck" | "walkUpSeats" | "turnedAwayFromGus">, week: number, program?: ActiveProgram): GuestWeekResult {
   const random = seeded(week * 17_171 + input.admissionPrice * 97 + input.built.length * 1_003 + (input.masterHired ? 1 : 0));
   const hasPlunge = has(input, "cold-plunge");
   const hasShower = has(input, "shower");
@@ -233,6 +233,16 @@ export function simulateGuestWeek(input: BalanceInput, report: Pick<WeekReport, 
       currentStop = "cold-plunge";
       latestActivity = "Cooling down at the cold plunge";
       reaction = guestFeedbackLine(hasShower ? "plungeWithShower" : "plunge", week, index);
+    } else if (wantsProgram && (report.turnedAwayFromGus ?? 0) > 0 && index === 1) {
+      // The mirror of walk-up fill: real demand src/sim/canalBalance.ts's turnedAwayFromGus
+      // reports the room genuinely could not serve. This guest wanted the programme specifically
+      // (goal.intents matched) and could not get a seat - not a guest who simply had no interest.
+      visitPath = ["arrival", "basic-sauna", "exit"];
+      currentStop = "basic-sauna";
+      latestActivity = "Settling for a basic sauna visit after the Gus was full";
+      reaction = guestFeedbackLine("turnedAway", week, index);
+      outcome = "frustrated";
+      programFit = "Strong match";
     } else if (hasYard && (wantsProgram || firstVisibleProgram) && index % 2 === 0) {
       visitPath = ["arrival", "outdoor-gus", "exit"];
       currentStop = "outdoor-gus";

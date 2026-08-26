@@ -30,6 +30,7 @@ export type WeekReport = {
   bottleneck?: string;
   recoveryDemand?: number;
   walkUpSeats?: number;
+  turnedAwayFromGus?: number;
   guestSnapshots?: import("./guestWeek").GuestSnapshot[];
   programReview?: import("./programEvaluation").ProgramReview;
 };
@@ -212,6 +213,12 @@ export function simulateCanalWeek(input: BalanceInput): WeekReport {
   const spareGusCapacity = program && hasCapacityUpgrade ? Math.max(0, Math.min(acceptedAdmissions, specialCapacity) - programDemand) : 0;
   const walkUpFill = Math.round(spareGusCapacity * WALK_UP_SPARE_FILL_SHARE);
   const potentialSpecialSeats = Math.min(acceptedAdmissions, specialCapacity, programDemand + walkUpFill);
+  // Pure transparency, not a new economic lever: real Gus demand that the room's own capacity
+  // could never have served, whether or not the player has any capacity upgrade at all. This never
+  // reduces admissions or revenue on its own - the guest still visits and uses the plain sauna
+  // (see the matching "turnedAway" story in src/sim/guestWeek.ts) - it only makes an already-
+  // computed gap visible, mirroring how coldRecoveryQueueLoss surfaces the opposite direction.
+  const turnedAwayFromGus = program ? Math.max(0, programDemand - Math.min(acceptedAdmissions, specialCapacity)) : 0;
   // Recovery is a real final capacity channel. Guests who cannot complete the recovery promise
   // leave rather than becoming decorative queue sprites with a fully paid ledger entry.
   const recoveryQueue = coldRecoveryQueueLoss(input, potentialSpecialSeats, program);
@@ -251,6 +258,7 @@ export function simulateCanalWeek(input: BalanceInput): WeekReport {
   if (!hasMaster) signal = "Routine admissions cover little more than the base venue. A Master unlocks the stronger loop.";
   else if (input.admissionPrice >= credibleAdmissionPrice + 7) signal = "Guests accept the price less often. Improve value or lower admission.";
   else if (recoveryQueue.bottleneck) signal = "Cold recovery is losing visits. Add or repair a shower to relieve the visible bottleneck.";
+  else if (turnedAwayFromGus >= 5) signal = "Gus demand is outrunning capacity. Guests are being turned away from a session they wanted.";
   else if (hasProgramSauna && conditionStatus(programCondition) !== "Healthy") signal = `Program Sauna is ${conditionStatus(programCondition).toLowerCase()}; programme capacity is reduced until it is serviced.`;
   else if (hasProgramSauna && !hasYard) signal = "The Program Sauna has spare potential. Improve the offer before buying more capacity.";
   else if (hasYard) signal = "Outdoor Gus is drawing attention. Master time and recovery flow now matter more.";
@@ -258,6 +266,7 @@ export function simulateCanalWeek(input: BalanceInput): WeekReport {
   return {
     admissions, specialSeats, specialCapacity, specialOccupancy, shopSales, shopLines, revenue, operatingCosts, loanRepayment, netResult, signal,
     walkUpSeats: walkUpSeats > 0 ? walkUpSeats : undefined,
+    turnedAwayFromGus: turnedAwayFromGus > 0 ? turnedAwayFromGus : undefined,
     revenueBreakdown: { admissions: admissionsRevenue, specialGus: specialRevenue, shop: shopRevenue },
     costBreakdown: { venueBase, staff, utilitiesAndCleaning, programMaterials: specialMaterials, shopProcurement, facilities: moduleCosts },
     requestedSessions: program?.requestedSessions,
