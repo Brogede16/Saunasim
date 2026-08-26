@@ -253,6 +253,24 @@ Dette retter en svaghed i den forrige, enklere model (én tabel med "Location fa
 
 ---
 
+## 2026-08-26 — Gæster var aldrig reelt vist i sauna uden Master
+
+**Spørgsmål:** "De gik bare ind og ud, jeg tænker der er mere — de var ikke i sauna." Og: badning uden Master skal kunne lade sig gøre (rigtigt, allerede designet sådan), men det skal også være synligt.
+
+**Fandt reel fejl:** `currentStop = "basic-sauna"` blev kun sat i de to sidste fallback-grene i [guestWeek.ts](../src/sim/guestWeek.ts), som begge kræver `specialSeats > 0`. Uden Master er `specialSeats` altid 0 (ingen kapacitet uden Master), så *alle* gæster endte med `currentStop = "exit"` uanset rute — de gik bogstaveligt talt bare forbi døren på vej ud, aldrig vist hvilende i sauna. Bekræftet ved kodegennemgang og efterfølgende live i browseren (autosave fra tidligere session, uden Master).
+
+**Rettet:** Halvdelen af "ingen Master"-gæsterne (dem der ikke går i shoppen) hviler nu reelt ved `basic-sauna` med rute `arrival → basic-sauna` (stadig i gang med besøget), den anden halvdel vises efter de er gået (`→ exit`). Live-bekræftet i browseren: "Mika Hale — Settling in for a basic sauna session" (rute uden exit) vs. "Leila Lind — Leaving after a basic sauna visit".
+
+**Andre lignende ting jeg lagde mærke til, men IKKE rettede endnu (afventer din prioritering):**
+1. Den modsatte fejl kan findes i den tilsvarende fallback *med* Master: når ingen gæster ønsker det aktive program, sætter den sidste fallback-gren ubetinget `currentStop = "basic-sauna"` for alle der lander der — ingen af dem vises nogensinde som allerede gået. Mindre synligt problem end det lige rettede, men samme grundmønster.
+2. Høj-pris-afvisning (`highPrice && index < 2`) rammer altid præcis gæst 0 og 1, uanset hvor meget overprissat venuet reelt er — en grov forenkling, ikke en "ingen historie"-fejl som de to ovenstående, men værd at nævne i samme ombæring.
+
+**Tests:** 1 ny test beviser at nogle "ingen Master"-gæster nu reelt hviler i sauna (ikke kun dem der er gået).
+
+**Resultat:** `npx vitest run` → 84/84 tests passerer (1 ny). `tsc -b` ren.
+
+---
+
 ## Verificeret efter disse rettelser (seneste kørsel)
 - `npx vitest run` → 82/82 tests passerer (13 filer)
 - `npx tsc -b` → ingen fejl

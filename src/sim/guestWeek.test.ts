@@ -61,6 +61,20 @@ describe("Guest week sample", () => {
     expect(allGuests.every((guest) => guest.programFit === "Not their main reason today")).toBe(true);
   });
 
+  it("shows some no-Master guests actually bathing, not only ones who have already left", () => {
+    const input = { cash: 3_350, built: [] as const, masterHired: false, admissionPrice: 24 };
+    const report = simulateCanalWeek(input);
+    const allGuests = Array.from({ length: 10 }, (_, week) => simulateGuestWeek(input, report, week + 1))
+      .flatMap((result) => result.guestSnapshots);
+
+    const bathing = allGuests.filter((guest) => guest.currentStop === "basic-sauna");
+    expect(bathing.length).toBeGreaterThan(0);
+    for (const guest of bathing) {
+      expect(guest.visitPath).toContain("basic-sauna");
+      expect(guest.visitPath).not.toContain("exit");
+    }
+  });
+
   it("makes high entry pricing visible in guest outcomes", () => {
     const input = { cash: 0, built: [] as const, masterHired: true, admissionPrice: 32 };
     const result = simulateGuestWeek(input, simulateCanalWeek(input), 3);

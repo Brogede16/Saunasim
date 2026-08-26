@@ -181,6 +181,16 @@ export function simulateGuestWeek(input: BalanceInput, report: Pick<WeekReport, 
         latestActivity = "Picking up a drink from the shop after a basic sauna visit";
         reaction = guestFeedbackLine("shop", week, index);
         outcome = "mixed";
+      } else if (index % 2 === 0) {
+        // Every sauna room can host a basic bathing visit with no Master and no scheduled Gus
+        // (decision-log.md); this guest is currently mid-visit, actually bathing, not just
+        // passing through the door on the way out - the previous version always rested every
+        // no-Master guest at "exit", so nobody was ever visibly using the sauna at all.
+        visitPath = ["arrival", "basic-sauna"];
+        currentStop = "basic-sauna";
+        latestActivity = "Settling in for a basic sauna session";
+        reaction = guestFeedbackLine("noMaster", week, index);
+        outcome = "mixed";
       } else {
         visitPath = ["arrival", "basic-sauna", "exit"];
         latestActivity = "Leaving after a basic sauna visit";
