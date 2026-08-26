@@ -41,12 +41,14 @@ class CanalScene extends Phaser.Scene {
   private effectLayer!: Phaser.GameObjects.Container;
   private markerLayer!: Phaser.GameObjects.Container;
   private hostLayer!: Phaser.GameObjects.Container;
+  private occupancyLayer!: Phaser.GameObjects.Container;
   private guestLayer!: Phaser.GameObjects.Container;
   private guests = new Map<string, Phaser.GameObjects.Container>();
   private layoutKey = "";
   private effectKey = "";
   private markerKey = "";
   private hostKey = "";
+  private occupancyKey = "";
   private guestKey = "";
   private venueName = "";
 
@@ -66,6 +68,7 @@ class CanalScene extends Phaser.Scene {
     this.effectLayer = this.add.container();
     this.markerLayer = this.add.container();
     this.hostLayer = this.add.container();
+    this.occupancyLayer = this.add.container();
     this.guestLayer = this.add.container();
     this.drawStaticWorld();
     this.createAmbientEffects();
@@ -108,6 +111,12 @@ class CanalScene extends Phaser.Scene {
       this.hostKey = hostKey;
       this.clearLayer(this.hostLayer);
       this.drawHost(snapshot);
+    }
+    const occupancyKey = `${snapshot.lastReport?.specialSeats ?? ""}:${snapshot.lastReport?.specialCapacity ?? ""}:${snapshot.built.includes("program")}:${snapshot.built.includes("aufguss-yard")}`;
+    if (occupancyKey !== this.occupancyKey) {
+      this.occupancyKey = occupancyKey;
+      this.clearLayer(this.occupancyLayer);
+      this.drawGusOccupancy(snapshot);
     }
     const guestKey = snapshot.lastReport?.guestSnapshots?.map((guest) => `${guest.id}:${guest.currentStop}:${guest.visitPath.join(",")}`).join("|") ?? "fallback";
     if (guestKey !== this.guestKey) {
@@ -247,6 +256,22 @@ class CanalScene extends Phaser.Scene {
       this.markerLayer.add(this.add.circle(point.x + 12, point.y - 20, 11, repairing ? 0x65747a : colors.warm).setStrokeStyle(3, colors.ink));
       this.markerLayer.add(this.add.text(point.x + 12, point.y - 20, repairing ? "..." : "!", { fontFamily: "ui-monospace, monospace", fontSize: repairing ? "9px" : "15px", fontStyle: "bold", color: repairing ? "#d6d9d3" : "#20333a" }).setOrigin(0.5));
     }
+  }
+
+  // A small steam-cloud badge showing seats/capacity for the week's Gus activity, next to whichever
+  // field is actually hosting it. This is a weekly aggregate (specialSeats/specialCapacity), the
+  // same numbers already shown in the report panel - not a live per-session headcount, since the
+  // game has no real-time clock simulating concurrent sessions yet (simulation-contract-v0.1.md).
+  // Requesting more than one session in a week already raises this same total capacity number
+  // rather than tracking each session's occupancy separately.
+  private drawGusOccupancy(snapshot: GameState) {
+    const seats = snapshot.lastReport?.specialSeats;
+    const capacity = snapshot.lastReport?.specialCapacity;
+    if (!seats || !capacity) return;
+    const anchor = snapshot.built.includes("aufguss-yard") ? canalAnchor("gus-master-yard") : snapshot.built.includes("program") ? canalAnchor("program-door") : canalAnchor("workshop-door");
+    const point = { x: anchor.x, y: anchor.y - 34 };
+    this.occupancyLayer.add(this.add.ellipse(point.x, point.y, 42, 24, colors.steam, 0.92).setStrokeStyle(2, colors.ink));
+    this.occupancyLayer.add(this.add.text(point.x, point.y, `${seats}/${capacity}`, { fontFamily: "ui-monospace, monospace", fontSize: "10px", fontStyle: "bold", color: "#20333a" }).setOrigin(0.5));
   }
 
   private drawHost(snapshot: GameState) {

@@ -323,6 +323,20 @@ Dette retter en svaghed i den forrige, enklere model (én tabel med "Location fa
 
 ---
 
+## 2026-08-26 — Gus-belægnings-badge i selve scenen
+
+**Idé:** En lille popup/damp-sky ved Gus'en, der viser fx "5/12" for deltagere vs. plads.
+
+**Implementeret** i [CanalScene.ts](../src/game/CanalScene.ts): en lille damp-sky-badge ved den aktive Gus-lokation (Program Sauna, Yard, eller den almindelige dør, alt efter hvad der er bygget) der viser `specialSeats/specialCapacity` — samme tal som allerede findes i ugerapporten, ikke en ny beregning. Genbruger samme mønster som de eksisterende vedligeholdelses-badges.
+
+**Ærlig begrænsning, som du selv nævnte:** Det er et **ugentligt aggregeret tal**, ikke en live optælling pr. session. Spillet har intet rigtigt ur endnu (afventer `simulation-contract-v0.1.md`), så kører man 2 sessioner i en uge, hæver det bare det samme samlede kapacitetstal — det viser ikke to separate badges for to sessioner. En rigtig pr.-session-opdeling skal vente til det rigtige ur bygges.
+
+**Live-verificeret:** Badgen viste korrekt "74/88" ved indgangsdøren i browseren.
+
+**Resultat:** `npx vitest run` → 90/90 tests passerer (uændret — ren rendering, ingen ny logik at teste). `tsc -b` ren. Build + bundle-budget OK.
+
+---
+
 ## Verificeret efter disse rettelser (seneste kørsel)
 - `npx vitest run` → 90/90 tests passerer (13 filer)
 - `npx tsc -b` → ingen fejl
