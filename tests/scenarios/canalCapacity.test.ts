@@ -5,12 +5,19 @@ import { starterProgram } from "../../src/sim/program";
 describe("Canal Gus capacity scenarios", () => {
   it("keeps the compact starter Gus at two eight-seat sessions", () => {
     const report = simulateCanalWeek({ cash: 0, built: [], masterHired: true, admissionPrice: 24, activeProgram: starterProgram });
+    // No capacity upgrade built, so walk-up fill (2026-08-26) never applies here - the bare starter
+    // room has no genuine flex space to offer up. This canonical reference stays exactly as before.
     expect(report).toMatchObject({ specialCapacity: 16, specialSeats: 14, specialOccupancy: 88 });
   });
 
-  it("makes Bench Refit create capacity without inventing demand", () => {
+  it("makes Bench Refit create capacity without inventing admission demand", () => {
     const report = simulateCanalWeek({ cash: 0, built: ["bench-refit"], masterHired: true, admissionPrice: 24, activeProgram: starterProgram });
-    expect(report).toMatchObject({ specialCapacity: 22, specialSeats: 14, specialOccupancy: 64 });
+    // Admissions (base demand) are unaffected by Bench Refit either way - the point of this test.
+    // specialSeats rises a little above the plain two-session capacity test above only because the
+    // wider spare capacity here leaves more empty seats for the same small, bounded walk-up top-up
+    // to fill (2026-08-26) - not because the extra capacity itself invented any new demand.
+    expect(report.admissions).toBe(70);
+    expect(report).toMatchObject({ specialCapacity: 22, specialSeats: 16, specialOccupancy: 73 });
   });
 
   it("lets a social program attract more guests but makes its higher price matter", () => {

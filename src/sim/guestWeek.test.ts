@@ -126,6 +126,27 @@ describe("Guest week sample", () => {
     expect(routineGuest!.reaction).toMatch(/arrival|reception|door|counter|weekly stop|check-in/i);
   });
 
+  it("gives the walk-up-fill guest a distinct story only when the ledger actually reports spare seats", () => {
+    // Social Energy matches only "A social reset"/"A new programme" goals, so most weeks leave the
+    // sample's designated "Open to it" guest genuinely not already wanting the programme - the real
+    // condition a walk-up guest represents.
+    const social = { ...starterProgram, intent: "Social Energy" as const };
+    const input = { cash: 0, built: ["bench-refit"] as const, masterHired: true, admissionPrice: 24, activeProgram: social };
+    const report = simulateCanalWeek(input);
+    expect(report.walkUpSeats).toBeGreaterThan(0);
+    const isWalkUpReaction = (guest: { reaction: string }) =>
+      guest.reaction.includes("Master mentioned") || guest.reaction.includes("spare seat opened up") || guest.reaction.includes("too well to pass up");
+
+    const withWalkUp = Array.from({ length: 60 }, (_, week) => simulateGuestWeek(input, report, week + 1, social))
+      .flatMap((result) => result.guestSnapshots);
+    expect(withWalkUp.some(isWalkUpReaction)).toBe(true);
+
+    const noWalkUpReport = { ...report, walkUpSeats: undefined };
+    const withoutWalkUp = Array.from({ length: 60 }, (_, week) => simulateGuestWeek(input, noWalkUpReport, week + 1, social))
+      .flatMap((result) => result.guestSnapshots);
+    expect(withoutWalkUp.some(isWalkUpReaction)).toBe(false);
+  });
+
   it("keeps the sampled guest age within the 18-100 range", () => {
     const input = { cash: 3_350, built: [] as const, masterHired: true, admissionPrice: 24 };
     const report = simulateCanalWeek(input);

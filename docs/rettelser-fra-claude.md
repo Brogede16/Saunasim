@@ -289,8 +289,26 @@ Dette retter en svaghed i den forrige, enklere model (én tabel med "Location fa
 
 ---
 
+## 2026-08-26 — Bundet walk-up-fyldning af ledig Gus-kapacitet implementeret
+
+**Idé:** Gusmesteren kan signalere ledig plads i et allerede planlagt hold, så walk-in-gæster med et reelt matchende behov kan deltage mod tillæg — kun ved godt match, ikke en flad konverteringsrate.
+
+**Implementeret i [canalBalance.ts](../src/sim/canalBalance.ts):**
+- Kun tilgængelig når venuet reelt har en kapacitetsopgradering (Bench Refit/Program Sauna/Yard) — den bare startsauna har ingen fleks-plads at tilbyde, så den kanoniske "healthy starter"-reference (558) er urørt.
+- Fylder kun en **bundet brøkdel** (25%) af den plads, reel efterspørgsel allerede har ladet stå tom — skalerer bevidst med selve den ledige plads, ikke med det samlede antal admissions, for at holde det genuint beskedent.
+- **Beskyttet mod at genåbne det oprindelige "Program Sauna er en pengemaskine"-hul** fra start af denne session: en ny regressionstest beviser at `program`-alene stadig giver et lavere nettoresultat end en almindelig sund uge — testet direkte efter at feature'en var bygget, som fandt problemet ved 40% andel og tvang mig til at skrue den ned til 25%.
+- **Gennemsigtig, ikke skjult**: nyt `walkUpSeats`-felt i rapporten, en linje i ugerapporten ("1 spare Gus seat filled by walk-up guests whose interests matched"), og en dedikeret gæste-fortælling ("walkUp"-feedback-familie) i stedet for en usynlig ledger-justering.
+
+**6 eksisterende "gyldne tal"-tests opdaterede** (canalCapacity, canalOperations, canalScenarioMatrix) med forklarende kommentarer om hvorfor tallene ændrede sig — samme metode som Program Sauna-rettelsen fra start af sessionen.
+
+**Live-verificeret:** Rapport-linjen viste korrekt "1 spare Gus seat filled by walk-up guests whose interests matched" i browseren. Selve gæste-fortællingen er sjælden nok (kun når den udpegede "Open to it"-gæst ikke allerede vil have Gus'en) at jeg ikke fangede den efter 7 ugers klik live — men den er bevist med en 60-ugers statistisk test i kode.
+
+**Resultat:** `npx vitest run` → 88/88 tests passerer (5 nye/opdaterede). `tsc -b` ren. Build + bundle-budget OK.
+
+---
+
 ## Verificeret efter disse rettelser (seneste kørsel)
-- `npx vitest run` → 82/82 tests passerer (13 filer)
+- `npx vitest run` → 88/88 tests passerer (13 filer)
 - `npx tsc -b` → ingen fejl
-- `npx vite build` → build lykkes, kodedelt i management-bundle (420 KB) + separat lazy-loaded Phaser-scene-chunk (1,39 MB)
+- `npx vite build` → build lykkes, kodedelt i management-bundle (~423 KB) + separat lazy-loaded Phaser-scene-chunk (1,39 MB)
 - `node scripts/check-bundle-size.mjs` → management-bundle inden for 450 KB-budgettet

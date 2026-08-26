@@ -274,6 +274,7 @@ export function App() {
             <div className="ledger-breakdown">Income: ${state.lastReport.revenueBreakdown.admissions} entry · ${state.lastReport.revenueBreakdown.specialGus} Gus · ${state.lastReport.revenueBreakdown.shop} shop</div>
             <div className="ledger-breakdown">Costs: ${state.lastReport.costBreakdown.venueBase} venue · ${state.lastReport.costBreakdown.staff} staff · ${state.lastReport.costBreakdown.utilitiesAndCleaning + state.lastReport.costBreakdown.facilities} operations · ${state.lastReport.costBreakdown.programMaterials + state.lastReport.costBreakdown.shopProcurement} inputs{state.lastReport.loanRepayment > 0 ? ` · $${state.lastReport.loanRepayment} loans` : ""}</div>
             {state.lastReport.requestedSessions && <div className="ledger-breakdown">Gus schedule: {state.lastReport.feasibleSessions}/{state.lastReport.requestedSessions} requested sessions could run</div>}
+            {!!state.lastReport.walkUpSeats && <div className="ledger-breakdown">{state.lastReport.walkUpSeats} spare Gus seat{state.lastReport.walkUpSeats === 1 ? "" : "s"} filled by walk-up guests whose interests matched</div>}
             <div className="ledger-breakdown">Opening window: {state.lastReport.scheduleFit} fit · {state.lastReport.scheduleNote}</div>
             {state.lastReport.venueDemandNote && <div className="ledger-breakdown">{state.lastReport.venueDemandNote}</div>}
             {state.lastReport.bottleneck && <div className="bottleneck">{state.lastReport.queueLoss} visits lost to delays at {state.lastReport.bottleneck}</div>}

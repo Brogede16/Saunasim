@@ -29,9 +29,13 @@ describe("Canal balance scenario matrix", () => {
     expect(owner.netResult).toBe(8);
     expect(healthy.netResult).toBe(558);
     expect(overpriced.netResult).toBeLessThan(healthy.netResult);
-    expect(frequent).toMatchObject({ feasibleSessions: 4, specialSeats: 28, specialCapacity: 44 });
+    // specialSeats includes the bounded walk-up top-up (2026-08-26) filling some of the capacity
+    // four feasible sessions leave spare beyond real programme demand, on top of Bench Refit.
+    expect(frequent).toMatchObject({ feasibleSessions: 4, specialSeats: 32, specialCapacity: 44 });
     expect(capacityFirst.netResult).toBeLessThan(healthy.netResult);
-    expect(socialYard).toMatchObject({ specialSeats: 22 });
+    // Includes the bounded walk-up top-up (2026-08-26) on top of the Outdoor Gus Yard's own
+    // physical-fit demand boost.
+    expect(socialYard).toMatchObject({ specialSeats: 27 });
     expect(socialYard.venueDemandNote).toContain("Outdoor Gus Yard");
     expect(loan.netResult).toBe(healthy.netResult - 375);
   });

@@ -29,6 +29,7 @@ export type WeekReport = {
   queueLoss?: number;
   bottleneck?: string;
   recoveryDemand?: number;
+  walkUpSeats?: number;
   guestSnapshots?: import("./guestWeek").GuestSnapshot[];
   programReview?: import("./programEvaluation").ProgramReview;
 };
@@ -199,12 +200,26 @@ export function simulateCanalWeek(input: BalanceInput): WeekReport {
     ))
     : specialCapacity;
   const programDemand = program ? Math.round(baseProgramDemand * scheduleEvaluation.programTiming) : baseProgramDemand;
-  const potentialSpecialSeats = Math.min(acceptedAdmissions, specialCapacity, programDemand);
+  // Only a fraction of whatever room real demand already left empty gets spontaneously filled -
+  // not every admitted guest with some affinity actually says yes on the spot. Scaling off the
+  // spare capacity itself (not off total admissions) keeps this a genuinely modest top-up: it can
+  // never come close to matching, let alone exceeding, real programme demand's own contribution.
+  // Only offered once the venue has an actual capacity upgrade (Bench Refit, Program Sauna or the
+  // Yard) - the bare starting room has no genuine flex space for a Master to offer up, so the
+  // canonical unmodified starter reference stays exactly what it always was.
+  const WALK_UP_SPARE_FILL_SHARE = 0.25;
+  const hasCapacityUpgrade = hasBenchRefit || hasProgramSauna || hasYard;
+  const spareGusCapacity = program && hasCapacityUpgrade ? Math.max(0, Math.min(acceptedAdmissions, specialCapacity) - programDemand) : 0;
+  const walkUpFill = Math.round(spareGusCapacity * WALK_UP_SPARE_FILL_SHARE);
+  const potentialSpecialSeats = Math.min(acceptedAdmissions, specialCapacity, programDemand + walkUpFill);
   // Recovery is a real final capacity channel. Guests who cannot complete the recovery promise
   // leave rather than becoming decorative queue sprites with a fully paid ledger entry.
   const recoveryQueue = coldRecoveryQueueLoss(input, potentialSpecialSeats, program);
   const admissions = Math.max(0, acceptedAdmissions - recoveryQueue.queueLoss);
   const specialSeats = Math.min(admissions, potentialSpecialSeats);
+  // How many of the final seats are attributable to walk-up fill rather than real demand, for a
+  // transparent player-facing figure - never a separate revenue source in its own right.
+  const walkUpSeats = Math.max(0, specialSeats - Math.min(admissions, specialCapacity, programDemand));
   const specialOccupancy = specialCapacity > 0 ? Math.round((specialSeats / specialCapacity) * 100) : 0;
   const specialRevenue = program ? specialSeats * program.supplementPrice : (hasMaster ? 14 * 7 : 0) + yardSeats * 14 + idleProgramSeats * 11;
   const specialMaterials = (preview ? preview.materialCost * feasibleSessions : hasMaster ? 23 : 0) + (hasYard ? 90 : 0) + (hasProgramSauna ? 70 : 0);
@@ -242,6 +257,7 @@ export function simulateCanalWeek(input: BalanceInput): WeekReport {
 
   return {
     admissions, specialSeats, specialCapacity, specialOccupancy, shopSales, shopLines, revenue, operatingCosts, loanRepayment, netResult, signal,
+    walkUpSeats: walkUpSeats > 0 ? walkUpSeats : undefined,
     revenueBreakdown: { admissions: admissionsRevenue, specialGus: specialRevenue, shop: shopRevenue },
     costBreakdown: { venueBase, staff, utilitiesAndCleaning, programMaterials: specialMaterials, shopProcurement, facilities: moduleCosts },
     requestedSessions: program?.requestedSessions,

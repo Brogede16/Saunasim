@@ -74,6 +74,11 @@ export const guestFeedback = {
     "Nothing went wrong, it just took longer to get in and checked in than a quick visit warrants.",
     "A dependable sauna stop, held back only by a slow arrival and reception experience.",
   ],
+  walkUp: [
+    "The Master mentioned there was room in the session, and it fit well enough to say yes on the spot.",
+    "A spare seat opened up and it matched what they were after, so they paid the small extra and joined in.",
+    "It was not the plan for today, but the timing and the theme lined up too well to pass up.",
+  ],
 } as const;
 
 export type GuestFeedbackFamily = keyof typeof guestFeedback;

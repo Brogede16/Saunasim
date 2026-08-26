@@ -135,7 +135,7 @@ function has(input: BalanceInput, id: BalanceInput["built"][number]) {
 }
 
 /** Creates a stable, readable sample of the guests behind the aggregate weekly ledger. */
-export function simulateGuestWeek(input: BalanceInput, report: Pick<WeekReport, "admissions" | "specialSeats" | "shopSales" | "queueLoss" | "bottleneck">, week: number, program?: ActiveProgram): GuestWeekResult {
+export function simulateGuestWeek(input: BalanceInput, report: Pick<WeekReport, "admissions" | "specialSeats" | "shopSales" | "queueLoss" | "bottleneck" | "walkUpSeats">, week: number, program?: ActiveProgram): GuestWeekResult {
   const random = seeded(week * 17_171 + input.admissionPrice * 97 + input.built.length * 1_003 + (input.masterHired ? 1 : 0));
   const hasPlunge = has(input, "cold-plunge");
   const hasShower = has(input, "shower");
@@ -169,6 +169,11 @@ export function simulateGuestWeek(input: BalanceInput, report: Pick<WeekReport, 
     const wantsProgram = !!program && goal.intents.includes(program.intent);
     const firstVisibleProgram = report.specialSeats > 0 && index === count - 1 && !visibleProgramGuest;
     let programFit: GuestSnapshot["programFit"] = wantsProgram ? "Strong match" : firstVisibleProgram ? "Open to it" : "Not their main reason today";
+    // The "Open to it" guest represents src/sim/canalBalance.ts's bounded walk-up fill when the
+    // ledger actually reports spare seats this week: the Master signalled room in an already-
+    // scheduled session, and this guest's need had enough affinity to say yes and pay the
+    // supplement - never a guest who wanted nothing to do with the programme at all.
+    const isWalkUp = firstVisibleProgram && !wantsProgram && (report.walkUpSeats ?? 0) > 0;
 
     if (!input.masterHired) {
       // No Master means no Gus at all, but the visit still needs its own story, not one
@@ -231,14 +236,14 @@ export function simulateGuestWeek(input: BalanceInput, report: Pick<WeekReport, 
     } else if (hasYard && (wantsProgram || firstVisibleProgram) && index % 2 === 0) {
       visitPath = ["arrival", "outdoor-gus", "exit"];
       currentStop = "outdoor-gus";
-      latestActivity = "Joining the outdoor Gus";
-      reaction = guestFeedbackLine("outdoorGus", week, index);
+      latestActivity = isWalkUp ? "Joining the outdoor Gus as a walk-up" : "Joining the outdoor Gus";
+      reaction = guestFeedbackLine(isWalkUp ? "walkUp" : "outdoorGus", week, index);
       visibleProgramGuest = true;
     } else if (hasProgram && (wantsProgram || firstVisibleProgram) && index % 2 === 1) {
       visitPath = ["arrival", "program", "exit"];
       currentStop = "program";
-      latestActivity = "Taking a seat for the programme Gus";
-      reaction = guestFeedbackLine("programRoom", week, index);
+      latestActivity = isWalkUp ? "Taking a spare seat in the programme Gus as a walk-up" : "Taking a seat for the programme Gus";
+      reaction = guestFeedbackLine(isWalkUp ? "walkUp" : "programRoom", week, index);
       visibleProgramGuest = true;
     } else if (goal.need === "Routine" && !firstVisibleProgram) {
       // Routine guests do not chase a particular Gus (goal.intents is deliberately empty for
@@ -255,8 +260,8 @@ export function simulateGuestWeek(input: BalanceInput, report: Pick<WeekReport, 
     } else if (report.specialSeats > 0 && (wantsProgram || firstVisibleProgram)) {
       visitPath = ["arrival", "program", "exit"];
       currentStop = index % 3 === 0 || firstVisibleProgram ? "program" : "exit";
-      latestActivity = currentStop === "program" ? "Taking a seat for the compact Gus" : "Leaving after the compact Gus";
-      reaction = guestFeedbackLine(program?.intent === "Quiet Recovery" ? "compactQuiet" : program?.intent === "Social Energy" ? "compactSocial" : "compactClassic", week, index);
+      latestActivity = currentStop !== "program" ? "Leaving after the compact Gus" : isWalkUp ? "Taking a spare seat in the compact Gus as a walk-up" : "Taking a seat for the compact Gus";
+      reaction = guestFeedbackLine(isWalkUp ? "walkUp" : program?.intent === "Quiet Recovery" ? "compactQuiet" : program?.intent === "Social Energy" ? "compactSocial" : "compactClassic", week, index);
       visibleProgramGuest = true;
     } else if (report.specialSeats > 0) {
       visitPath = ["arrival", "basic-sauna", "exit"];

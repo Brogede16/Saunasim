@@ -90,6 +90,25 @@ describe("Canal balance reference", () => {
     expect(coldRecoveryQueueLoss(plungeOnly, 0, activeProgram).bottleneck).toBeUndefined();
   });
 
+  it("only offers a bounded walk-up top-up once the venue has real spare capacity to offer", () => {
+    const withoutUpgrade = simulateCanalWeek({ cash: 0, built: [], masterHired: true, admissionPrice: 24, activeProgram: starterProgram });
+    const withUpgrade = simulateCanalWeek({ cash: 0, built: ["bench-refit"], masterHired: true, admissionPrice: 24, activeProgram: starterProgram });
+    // No capacity upgrade: no walk-up seats reported at all, not even zero-but-present.
+    expect(withoutUpgrade.walkUpSeats).toBeUndefined();
+    // With one: a real but modest top-up, well short of filling all the spare room outright.
+    expect(withUpgrade.walkUpSeats).toBeGreaterThan(0);
+    expect(withUpgrade.walkUpSeats!).toBeLessThan((withUpgrade.specialCapacity ?? 0) - (withUpgrade.specialSeats - (withUpgrade.walkUpSeats ?? 0)));
+  });
+
+  it("never lets walk-up fill alone make Program Sauna pay for itself before real demand exists", () => {
+    // The exact regression this project already fixed once (rettelser-fra-claude.md, 2026-08-25):
+    // Program Sauna's own physical-fit bonus must never let it outperform a plain healthy starter
+    // week on its own. Walk-up fill (2026-08-26) must not quietly reopen that gap either.
+    const healthy = simulateCanalWeek({ cash: 0, built: [], masterHired: true, admissionPrice: 24, activeProgram: starterProgram });
+    const programOnly = simulateCanalWeek({ cash: 0, built: ["program"], masterHired: true, admissionPrice: 24, activeProgram: starterProgram });
+    expect(programOnly.netResult).toBeLessThan(healthy.netResult);
+  });
+
   it("connects the opening window to programme intent without using demographic assumptions", () => {
     const quiet = { ...starterProgram, intent: "Quiet Recovery" as const };
     const social = { ...starterProgram, intent: "Social Energy" as const };

@@ -37,7 +37,9 @@ describe("Canal operating scenarios", () => {
   it("lets a fitting social Gus fill extra seats before it needs a major new room", () => {
     const social = { ...starterProgram, intent: "Social Energy" as const, performance: "Rhythmic Flow" as const };
     const report = simulateCanalWeek({ cash: 0, built: ["bench-refit"], masterHired: true, admissionPrice: 24, activeProgram: social });
-    expect(report.specialSeats).toBe(19);
+    // +1 seat above the pre-walk-up 19 is the bounded walk-up top-up (2026-08-26) filling some of
+    // the capacity Bench Refit adds beyond what the social programme's own demand fills.
+    expect(report.specialSeats).toBe(20);
     expect(report.specialOccupancy).toBeGreaterThanOrEqual(80);
   });
 
