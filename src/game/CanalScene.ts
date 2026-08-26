@@ -7,6 +7,28 @@ const WORLD = canalWorkshopScene.world;
 const VIEWPORT = { width: 456, height: 640 };
 const colors = { ink: 0x20333a, paving: 0xa5a69f, stone: 0x747d78, water: 0x287f99, waterLight: 0x6fbecc, brick: 0x9b563e, brickDark: 0x65382f, timber: 0x704333, warm: 0xf3bb62, green: 0x66865d, greenLight: 0x9eb980, empty: 0xc0b89f, steam: 0xe9eee9 };
 
+// A small set of fixed clustering offsets so guests sharing one anchor (Program, Shop, Shower,
+// Basic Sauna, Outdoor Gus, Cold Plunge) don't render exactly on top of each other. Slots are
+// assigned by each guest's rank among the *other guests currently resting at that same stop*, not
+// by their raw sample index - the previous `index % 2` approach could put three different-parity
+// guests all on the same slot while the other sat empty. Extra guests beyond a stop's slot count
+// wrap around (a real collision system is not warranted for a 4-8 guest placeholder sample).
+const STOP_CLUSTER_OFFSETS: Partial<Record<import("../sim/guestWeek").GuestRouteStop, ReadonlyArray<{ dx: number; dy: number }>>> = {
+  "outdoor-gus": [{ dx: -16, dy: 0 }, { dx: 16, dy: 0 }, { dx: -16, dy: 20 }, { dx: 16, dy: 20 }],
+  "cold-plunge": [{ dx: -16, dy: 0 }, { dx: 16, dy: 0 }],
+  program: [{ dx: -14, dy: 0 }, { dx: 14, dy: 0 }, { dx: 0, dy: -16 }, { dx: 0, dy: 16 }],
+  shower: [{ dx: -12, dy: 0 }, { dx: 12, dy: 0 }],
+  shop: [{ dx: -12, dy: 0 }, { dx: 12, dy: 0 }],
+  "basic-sauna": [{ dx: -14, dy: 0 }, { dx: 14, dy: 0 }, { dx: 0, dy: -16 }, { dx: 0, dy: 16 }],
+};
+
+// Queues render as a real line, not a stack, and are capped at a small visible length regardless
+// of how many guests the underlying model says are actually waiting - the simulation already
+// resolves excess demand as lost visits (queueLoss in canalBalance.ts), so the scene never needs
+// to draw more people than would ever plausibly be visible at a small compact venue's queue.
+const QUEUE_MAX_VISIBLE_SLOTS = 6;
+const QUEUE_SLOT_SPACING = 18;
+
 type SceneModuleId = Exclude<ModuleId, "bench-refit">;
 type ModuleField = Extract<(typeof canalWorkshopScene.fields)[number], { module: string }>;
 const moduleFields = Object.fromEntries(canalWorkshopScene.fields.filter((field): field is ModuleField => "module" in field).map((field) => [field.module, field])) as Record<SceneModuleId, ModuleField>;
@@ -245,8 +267,8 @@ class CanalScene extends Phaser.Scene {
     }
     people.forEach((person, index) => {
       if (this.guests.has(person.id)) return;
-      const target = "anchor" in person ? canalAnchor(person.anchor) : this.guestRouteTarget(person.currentStop, index);
-      const start = "anchor" in person ? target : this.guestRouteTarget("arrival", index);
+      const target = "anchor" in person ? canalAnchor(person.anchor) : this.guestRouteTarget(person.currentStop, index, person.id, people);
+      const start = "anchor" in person ? target : this.guestRouteTarget("arrival", index, person.id, people);
       const guest = this.drawPerson(this.guestLayer, start.x, start.y, this.guestColor(person.palette), person.id);
       this.guests.set(person.id, guest);
       if (!("anchor" in person)) {
@@ -257,9 +279,25 @@ class CanalScene extends Phaser.Scene {
           gameStore.selectGuest(person.id);
         });
         const stops = person.visitPath.slice(0, Math.max(1, person.visitPath.lastIndexOf(person.currentStop) + 1));
-        this.tweens.chain({ targets: guest, tweens: stops.map((stop) => ({ ...this.guestRouteTarget(stop, index), duration: 780, ease: "Sine.easeInOut" })), delay: index * 120 });
+        this.tweens.chain({ targets: guest, tweens: stops.map((stop) => ({ ...this.guestRouteTarget(stop, index, person.id, people), duration: 780, ease: "Sine.easeInOut" })), delay: index * 120 });
       }
     });
+  }
+
+  // Slot rank among the guests who share this exact resting stop right now, used to fan them out
+  // instead of stacking. Only applied at a guest's own currentStop (where they actually linger) -
+  // stops a guest merely passes through on the way there are not de-overlapped, since the staggered
+  // per-guest tween delay already keeps transient movement from reading as a collision.
+  private stopClusterOffset(stop: import("../sim/guestWeek").GuestRouteStop, personId: string, people: readonly { id: string; currentStop: import("../sim/guestWeek").GuestRouteStop }[]) {
+    const sharingIds = people.filter((candidate) => candidate.currentStop === stop).map((candidate) => candidate.id);
+    const slot = Math.max(0, sharingIds.indexOf(personId));
+    if (stop === "queue") {
+      const visibleTotal = Math.min(sharingIds.length, QUEUE_MAX_VISIBLE_SLOTS);
+      const visibleSlot = Math.min(slot, QUEUE_MAX_VISIBLE_SLOTS - 1);
+      return { dx: (visibleSlot - (visibleTotal - 1) / 2) * QUEUE_SLOT_SPACING, dy: 0 };
+    }
+    const offsets = STOP_CLUSTER_OFFSETS[stop];
+    return offsets ? offsets[slot % offsets.length] : { dx: 0, dy: 0 };
   }
 
   private guestColor(palette: string) { return ({ sand: 0xe7dfd4, moss: 0x9eb980, clay: 0xca8b65, slate: 0x8ca5aa, coral: 0xe69b88 } as Record<string, number>)[palette] ?? 0xe7dfd4; }
@@ -277,12 +315,15 @@ class CanalScene extends Phaser.Scene {
     }
   }
 
-  private guestRouteTarget(stop: import("../sim/guestWeek").GuestRouteStop, index: number) {
+  private guestRouteTarget(stop: import("../sim/guestWeek").GuestRouteStop, index: number, personId: string, people: readonly { id: string; currentStop: import("../sim/guestWeek").GuestRouteStop }[]) {
     const anchors: Record<import("../sim/guestWeek").GuestRouteStop, CanalAnchorId> = {
-      arrival: "arrival-street", queue: "cold-plunge-queue", "basic-sauna": "workshop-door", program: "program-door", "outdoor-gus": index % 2 ? "gus-guest-yard-b" : "gus-guest-yard-a", shower: "shower-workshop", "cold-plunge": index % 2 ? "cold-plunge-b" : "cold-plunge-a", shop: "shop-stop", exit: "arrival-street",
+      arrival: "arrival-street", queue: "cold-plunge-queue", "basic-sauna": "workshop-door", program: "program-door", "outdoor-gus": "gus-guest-yard-a", shower: "shower-workshop", "cold-plunge": "cold-plunge-a", shop: "shop-stop", exit: "arrival-street",
     };
     const point = canalAnchor(anchors[stop]);
-    return stop === "exit" ? { x: point.x, y: point.y - index * 24 } : point;
+    if (stop === "exit") return { x: point.x, y: point.y - index * 24 };
+    if (stop !== people.find((candidate) => candidate.id === personId)?.currentStop) return point;
+    const offset = this.stopClusterOffset(stop, personId, people);
+    return { x: point.x + offset.dx, y: point.y + offset.dy };
   }
 }
 

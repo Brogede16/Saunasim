@@ -50,6 +50,17 @@ describe("Guest week sample", () => {
     expect(simulateGuestWeek(wornInput, simulateCanalWeek(wornInput), 4, program)).toMatchObject({ bottleneck: "Cold recovery", queueLoss: 1 });
   });
 
+  it("still gives guests a varied story when no Master is hired at all, not one repeated line", () => {
+    const input = { cash: 3_350, built: ["shop"] as const, masterHired: false, admissionPrice: 24 };
+    const report = simulateCanalWeek(input);
+    const allGuests = Array.from({ length: 30 }, (_, week) => simulateGuestWeek(input, report, week + 1))
+      .flatMap((result) => result.guestSnapshots);
+
+    expect(new Set(allGuests.map((guest) => guest.currentStop)).size).toBeGreaterThan(1);
+    expect(allGuests.some((guest) => guest.currentStop === "shop")).toBe(true);
+    expect(allGuests.every((guest) => guest.programFit === "Not their main reason today")).toBe(true);
+  });
+
   it("makes high entry pricing visible in guest outcomes", () => {
     const input = { cash: 0, built: [] as const, masterHired: true, admissionPrice: 32 };
     const result = simulateGuestWeek(input, simulateCanalWeek(input), 3);

@@ -171,11 +171,22 @@ export function simulateGuestWeek(input: BalanceInput, report: Pick<WeekReport, 
     let programFit: GuestSnapshot["programFit"] = wantsProgram ? "Strong match" : firstVisibleProgram ? "Open to it" : "Not their main reason today";
 
     if (!input.masterHired) {
-      visitPath = ["arrival", "basic-sauna", "exit"];
-      latestActivity = "Leaving after a basic sauna visit";
-      reaction = guestFeedbackLine("noMaster", week, index);
-      outcome = "mixed";
+      // No Master means no Gus at all, but the visit still needs its own story, not one
+      // repeated line for every guest - a shop-friendly guest still stops for a drink, and
+      // reaction/outcome still varies per guest, matching the variety every other state gets.
       programFit = "Not their main reason today";
+      if (hasShop && report.shopSales > 0 && goal.shopFriendly && index % 3 === 1) {
+        visitPath = ["arrival", "basic-sauna", "shop", "exit"];
+        currentStop = "shop";
+        latestActivity = "Picking up a drink from the shop after a basic sauna visit";
+        reaction = guestFeedbackLine("shop", week, index);
+        outcome = "mixed";
+      } else {
+        visitPath = ["arrival", "basic-sauna", "exit"];
+        latestActivity = "Leaving after a basic sauna visit";
+        reaction = guestFeedbackLine("noMaster", week, index);
+        outcome = "mixed";
+      }
     } else if (highPrice && index < 2) {
       visitPath = ["arrival", "exit"];
       latestActivity = "Left after checking the admission price";

@@ -227,6 +227,32 @@ Dette retter en svaghed i den forrige, enklere model (én tabel med "Location fa
 
 ---
 
+## 2026-08-26 — Lokalt git-repo oprettet
+
+**Gjort:** `git init` + første commit. Tilføjede `*.tsbuildinfo` til `.gitignore` inden commit — de tre TypeScript-build-cache-filer var ellers blevet stagede ved en fejl (genererede, maskinspecifikke filer, ikke kildekode). Ingen hemmeligheder/credentials fundet ved gennemgang af de stagede filer.
+
+**Bevidst ikke gjort:** Intet remote/GitHub-repo oprettet, intet pushet. Det er en separat beslutning der involverer din konto og synlighed (offentligt/privat repo), så det kræver eksplicit go fra dig — CI-workflowet (`ci.yml`) kan først rent faktisk køre, når koden er hostet på GitHub.
+
+**Resultat:** 134 filer i første commit. `npx vitest run` → 82/82 tests passerer (kørt lige før commit for at bekræfte en ren tilstand).
+
+---
+
+## 2026-08-26 — Gæster overlapper ikke længere, og "ingen Master"-besøg har nu variation
+
+**Spørgsmål:** Kan gæster stå i kø uden at det bliver urealistisk mange, og går de ikke ind i hinanden? Og er der en god historie, selv når der ikke kører nogen Gus?
+
+**1. Fandt reelt overlap-problem.** [CanalScene.ts](../src/game/CanalScene.ts) havde intet kollisions-system — Program, Shop, Shower, almindelig sauna og kø delte alle ét eneste fast ankerpunkt, så 2+ gæster samtidig blev tegnet præcis oven i hinanden. Den eneste eksisterende afhjælpning (`index % 2` for Outdoor Gus/Cold Plunge) havde desuden en reel fejl: den brugte gæstens globale pladsnummer (0-7) i stedet for deres rækkefølge blandt dem der faktisk delte det stop, så tre gæster med samme paritet (fx index 1, 3, 5) alle kunne lande på samme plads, mens den anden plads stod tom.
+
+**2. Rettet med en generel "cluster"-løsning**, ikke kun kø: hvert stop har nu op til 4 faste, små forskudte pladser omkring sit ankerpunkt, tildelt efter gæstens rangorden blandt dem der rent faktisk deler det stop lige nu — beregnet korrekt uanset hvor mange eller få gæster der er. Kø-stoppet er en rigtig linje (`QUEUE_SLOT_SPACING`), og er hårdt begrænset til maks. 6 synlige pladser — modellen taber allerede overskydende efterspørgsel som `queueLoss` i den økonomiske beregning, så scenen skal aldrig tegne flere end det ville se troværdigt ud med på et lille venue.
+
+**3. "Ingen Master"-besøg har nu variation.** Før fik *alle* synlige gæster nøjagtig samme rute, samme reaktion-familie og samme udfald, når ingen Master var hyret — kun navn/alder varierede. Nu tager en shop-venlig gæst (hvis Reception Shop er bygget og der er salg) et hurtigt stop i shoppen, ligesom i alle andre spiltilstande, i stedet for at hele gæste-prøven føles ens.
+
+**Tests:** 1 ny test i [guestWeek.test.ts](../src/sim/guestWeek.test.ts) beviser variationen i "ingen Master"-tilstanden over 30 uger. `CanalScene.ts`s cluster-logik er ikke automatisk testet (Phaser-rendering kræver et canvas/WebGL-miljø som ikke findes i denne test-opsætning i forvejen — samme begrænsning som resten af scenen), men verificeret ved kodegennemgang og `tsc -b`.
+
+**Resultat:** `npx vitest run` → 83/83 tests passerer (1 ny). `tsc -b` ren. Build + bundle-budget OK.
+
+---
+
 ## Verificeret efter disse rettelser (seneste kørsel)
 - `npx vitest run` → 82/82 tests passerer (13 filer)
 - `npx tsc -b` → ingen fejl
