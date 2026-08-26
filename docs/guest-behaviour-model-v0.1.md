@@ -12,6 +12,8 @@ A guest is a **visit**, not a permanent character the player must collect. Visib
 
 Age is shown as human context, never as a shortcut for taste. The simulation may use broad life rhythm and availability, but no age group automatically likes or dislikes a particular sauna style.
 
+**A visit never requires a Master or a Gus.** There are three real tiers, all already possible from a fresh venue: (1) no Master hired -> guests can still visit and bathe, collecting routine admissions with their own honest story (`src/sim/guestWeek.ts`'s `!input.masterHired` branch - some are shown genuinely mid-visit at `basic-sauna`, not only ones who have already left, per the 2026-08-26 fix); (2) a Master but no dedicated Program Sauna -> every sauna room can already host a Basic Aufguss (`aufguss-system-v0.1.md`); (3) Master plus Program Sauna/Yard -> Special Aufguss with stronger capacity and presentation. A venue is never "not open" for lack of a Master - see `canal-workshop-balance-reference-v0.1.md`'s "the owner can open without a Master" line.
+
 ## Guest Profile
 
 Every simulated visit has the following internal information.
@@ -152,7 +154,7 @@ discover -> decide -> arrive -> queue/check-in -> sauna/program -> recovery/ling
 
 ## Queue and Capacity Behaviour
 
-Queues are a real visible signal, not a random penalty.
+Queues are a real visible signal, not a random penalty. A scheduled Gus itself never queues - it is treated as pre-booked/expected attendance, matching how a real timed Aufguss session works. Only shared, non-scheduled recovery facilities (shower, cold plunge) create real walk-up contention; see `aufguss-system-v0.1.md`'s note on this, 2026-08-26.
 
 | Situation | Typical guest response | Player remedies |
 | --- | --- | --- |

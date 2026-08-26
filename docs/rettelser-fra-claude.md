@@ -271,6 +271,24 @@ Dette retter en svaghed i den forrige, enklere model (én tabel med "Location fa
 
 ---
 
+## 2026-08-26 — Kapacitets-preview i program-builderen + eksplicit "Gus er forudbestilt"-regel i docs
+
+**Spørgsmål:** Skal en Gus der presser recovery-kapaciteten forhindres automatisk, eller skal spilleren vurdere det selv? Og er Gus forudbestilt hjemmefra, eller skal gæster stå i kø til selve sessionen?
+
+**Svar (begge dele allerede reelt afklaret af eksisterende designprincipper — jeg gjorde dem eksplicitte og lukkede et hul):**
+1. **Ingen automatisk begrænsning — kun synlighed.** Spillet forhindrer aldrig en overbooket Gus, men konsekvensen (tabte besøg, navngivet flaskehals) var kun synlig *efter* man kørte ugen. [canalBalance.ts](../src/sim/canalBalance.ts)s `coldRecoveryQueueLoss()` er nu eksporteret og genbruges direkte i [App.tsx](../src/ui/App.tsx)s program-builder til at vise samme faktuelle tal *før* man forpligter sig — i samme afdæmpede tone som lånemenuen ("her er tallene", ikke "dårlig idé"). Ingen ny beregningslogik, kun genbrug — undgår drift mellem preview og faktisk resultat.
+2. **Gus er forudbestilt, kun recovery er walk-up.** Dette matcher allerede koden (der findes ingen kø-mekanik for selve Gus-sessionen, kun for koldtvandsrecovery), men var ikke skrevet eksplicit ned. Tilføjet som en tydelig, begrundet regel i [aufguss-system-v0.1.md](aufguss-system-v0.1.md) og krydsrefereret i [guest-behaviour-model-v0.1.md](guest-behaviour-model-v0.1.md), så en fremtidig AI-coder ikke fejlagtigt tilføjer en Gus-kø som en "manglende funktion".
+
+**Bekræftet dokument-konsistens:** Du spurgte om "man kan altid bade uden Master" er skrevet ind alle steder — det var det i 3 andre docs, men ikke i `guest-behaviour-model-v0.1.md`s Core Rule, hvor jeg selv har arbejdet mest. Tilføjet der nu, med reference til de tre eksisterende badnings-niveauer (ingen Master → ren badning, Master uden Program Sauna → Basic Aufguss, Master + Program Sauna/Yard → Special Aufguss).
+
+**Ikke gjort — afventer din prioritering:** Idéen om at Gusmesteren kan signalere ledig plads på et gushold, så walk-in-gæster kan deltage mod at betale ekstra-tillæg. God idé, men rører den beskyttede økonomi-ledger, så den bør besluttes for sig, ikke bygges i forbifarten.
+
+**Live-verifikation:** Bekræftet i browseren efter at have brugt `window.advanceTime()` (dev QA-hook) til at oparbejde nok kassebeholdning til at bygge og ruske Cold Plunge igennem. Med Cold Plunge valgt som finish viste program-builderen præcis: "Based on last week's turnout, this recovery finish and schedule would need about 7 recovery visits against your current shower/plunge capacity - expect some cold-recovery queueing."
+
+**Resultat:** `npx vitest run` → 85/85 tests passerer (1 ny). `tsc -b` ren.
+
+---
+
 ## Verificeret efter disse rettelser (seneste kørsel)
 - `npx vitest run` → 82/82 tests passerer (13 filer)
 - `npx tsc -b` → ingen fejl

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateScheduleFit, simulateCanalWeek } from "./canalBalance";
+import { coldRecoveryQueueLoss, evaluateScheduleFit, simulateCanalWeek } from "./canalBalance";
 import { starterProgram } from "./program";
 
 describe("Canal balance reference", () => {
@@ -81,6 +81,13 @@ describe("Canal balance reference", () => {
     expect(plungeOnly).toMatchObject({ bottleneck: "Cold recovery", queueLoss: 1 });
     expect(plungeOnly.admissions).toBeLessThan(withShower.admissions);
     expect(plungeOnly.netResult).toBeLessThan(withShower.netResult);
+  });
+
+  it("exposes coldRecoveryQueueLoss so the program builder can preview recovery pressure before running the week", () => {
+    const activeProgram = { ...starterProgram, recoveryFinish: "Cold Plunge" as const, requestedSessions: 1 };
+    const plungeOnly = { cash: 0, built: ["cold-plunge"] as const, masterHired: true, admissionPrice: 24, activeProgram };
+    expect(coldRecoveryQueueLoss(plungeOnly, 20, activeProgram)).toMatchObject({ bottleneck: "Cold recovery" });
+    expect(coldRecoveryQueueLoss(plungeOnly, 0, activeProgram).bottleneck).toBeUndefined();
   });
 
   it("connects the opening window to programme intent without using demographic assumptions", () => {

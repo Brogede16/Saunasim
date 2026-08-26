@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { exportSave, importSave, loadAutosave, saveAutosave } from "../save/savegame";
 import { borrowingLimit, borrowingRoom, gameStore, hasAvailableLoan, hasModule, loanOffers, maintainableModules, masterCourseCost, masterEquipment, masterSearchOptions, modules, outstandingDebt, projectFor, type MasterCraft } from "../sim/game";
-import { evaluateScheduleFit } from "../sim/canalBalance";
+import { coldRecoveryQueueLoss, evaluateScheduleFit } from "../sim/canalBalance";
 import { deliveryForms, formats, heatProfiles, intents, materialClass, materials, musicDirections, performances, previewProgram, programSignature, programSummary, recoveryFinishes, suggestedProgramName, type ActiveProgram } from "../sim/program";
 import { conditionEffect, conditionStatus } from "../sim/maintenance";
 import { shopItems } from "../sim/shop";
@@ -19,6 +19,12 @@ export function App() {
   const [activePanel, setActivePanel] = useState<"overview" | "programs" | "team" | "venue" | "shop" | "guests" | "finance">("overview");
   const saveFileInput = useRef<HTMLInputElement>(null);
   const programPreview = previewProgram(state.activeProgram);
+  // Same factual numbers the weekly report already uses (coldRecoveryQueueLoss), shown before the
+  // player commits to a schedule instead of only after running the week. Based on last week's
+  // actual special-seat count when one exists; a brand-new venue with no report yet simply has
+  // nothing to preview against. Informational only, like the loan menu's objective terms - it
+  // never blocks a choice, matching the "player evaluates, nothing is auto-restricted" rule.
+  const recoveryPreview = coldRecoveryQueueLoss(state, state.lastReport?.specialSeats ?? 0, state.activeProgram);
   const selectedSceneModule = state.selectedModuleId ? modules.find((module) => module.id === state.selectedModuleId) : undefined;
   const activeProgramIsSaved = state.repertoire.some((entry) => programSignature(entry.program) === programSignature(state.activeProgram));
   const updateProgram = <K extends keyof ActiveProgram>(key: K, value: ActiveProgram[K]) => {
@@ -253,6 +259,7 @@ export function App() {
           <p>{state.activeProgram.aromaRounds.map((round) => `${materialClass(round.material)} ${round.material}`).join(" · ")}. Order changes the programme's later composition review.</p>
           <div className="program-preview"><span>ROOM {programPreview.roomMinutes} MIN</span><span>GUEST JOURNEY {programPreview.guestMinutes} MIN</span><span>INPUTS ${programPreview.materialCost}/SESSION</span><span>{state.activeProgram.revealedTier ?? programPreview.composition.toUpperCase()}</span></div>
           <p>{programPreview.flowNote}</p>
+          {recoveryPreview.bottleneck && <p className="recovery-preview-note">Based on last week's turnout, this recovery finish and schedule would need about {recoveryPreview.recoveryDemand} recovery visits against your current shower/plunge capacity - expect some cold-recovery queueing.</p>}
           <div className="repertoire-action"><span>{state.activeProgram.revealedTier ? `${state.activeProgram.revealedTier} composition discovered` : "Run this Gus once to discover its composition"}</span><button disabled={!state.activeProgram.revealedTier || activeProgramIsSaved} onClick={() => gameStore.saveActiveProgram()}>{activeProgramIsSaved ? "Saved" : "Save to repertoire"}</button></div>
           {state.repertoire.length > 0 && <section className="repertoire-panel" aria-label="Saved Gus repertoire">
             <header><span>SAVED GUS</span><small>{state.repertoire.length} discovered</small></header>

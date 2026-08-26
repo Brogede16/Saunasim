@@ -23,6 +23,8 @@ Every sauna room can host a **Basic Aufguss** from the start: a simple heat, sce
 
 Every viable sauna room can also host a Special Aufguss when it has a suitable Master and slot. Program Saunas and eligible outdoor Gus fields are the strongest setting for it, with better capacity, presentation and satisfaction potential; they are not the only legal place to run one.
 
+**A scheduled Gus is treated as pre-booked/expected attendance, not a walk-up queue (2026-08-26).** In the real world a timed Aufguss session is something guests plan around and arrive for, not something they queue at the door for; only genuinely shared, non-scheduled facilities (a shower, a cold plunge) create real walk-up contention. This is why `src/sim/guestWeek.ts` never simulates a queue for the Gus session itself - a guest who wants the programme goes straight to it - while `coldRecoveryQueueLoss()` in `src/sim/canalBalance.ts` is the only queue/bottleneck mechanic in the game, and only for shared post-session recovery facilities. Do not add a pre-Gus queue later without first revisiting this decision; it is deliberate, not an oversight.
+
 ### Aufguss Program
 
 The player creates a reusable program. It contains six composition categories:

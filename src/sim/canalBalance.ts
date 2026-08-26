@@ -106,7 +106,10 @@ function physicalProgramDemandFit(program: NonNullable<BalanceInput["activeProgr
   return { multiplier: 1, priceSensitivity: 1, note: undefined };
 }
 
-function coldRecoveryQueueLoss(input: BalanceInput, specialSeats: number, program?: BalanceInput["activeProgram"]) {
+// Exported so the program builder can show the same factual recovery-capacity numbers before the
+// player commits to a schedule, not only after running the week - reusing this instead of a
+// separate UI estimate means the preview can never quietly drift from the real weekly result.
+export function coldRecoveryQueueLoss(input: BalanceInput, specialSeats: number, program?: BalanceInput["activeProgram"]) {
   const hasPlunge = owns(input, "cold-plunge");
   const hasShower = owns(input, "shower");
   const usesPlungeFinish = program?.recoveryFinish === "Cold Plunge" && hasPlunge;
