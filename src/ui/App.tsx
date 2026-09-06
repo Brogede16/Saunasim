@@ -6,7 +6,8 @@ import { deliveryForms, formats, heatProfiles, intents, materialClass, materials
 import { conditionEffect, conditionStatus } from "../sim/maintenance";
 import { shopItems } from "../sim/shop";
 import { serviceTeamTiers } from "../sim/serviceTeam";
-import { devClockOffsetHours, devNow, resetDevClock, shiftDevClock } from "../dev/devClock";
+
+type DevClock = typeof import("../dev/devClock");
 
 function useGameState() {
   return useSyncExternalStore(gameStore.subscribe, gameStore.getState, gameStore.getState);
@@ -16,9 +17,11 @@ export function App() {
   const state = useGameState();
   const [saveStatus, setSaveStatus] = useState("Loading");
   const [sceneReady, setSceneReady] = useState(false);
+  const [devClock, setDevClock] = useState<DevClock>();
   const [, setNow] = useState(() => Date.now());
   const [activePanel, setActivePanel] = useState<"overview" | "programs" | "team" | "venue" | "shop" | "guests" | "finance">("overview");
   const saveFileInput = useRef<HTMLInputElement>(null);
+  const presentNow = devClock?.devNow() ?? Date.now();
   const programPreview = previewProgram(state.activeProgram);
   // Same factual numbers the weekly report already uses (coldRecoveryQueueLoss), shown before the
   // player commits to a schedule instead of only after running the week. Based on last week's
@@ -74,21 +77,33 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      setNow(devNow());
-      gameStore.resolveConstruction(devNow());
-      gameStore.resolveRepair(devNow());
-      gameStore.resolveMasterSearch(devNow());
-    }, 1_000);
-    return () => window.clearInterval(timer);
+    if (!import.meta.env.DEV) return;
+    let cancelled = false;
+    void import("../dev/devClock").then((clock) => {
+      if (!cancelled) setDevClock(clock);
+    });
+    return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    const currentNow = () => devClock?.devNow() ?? Date.now();
+    const timer = window.setInterval(() => {
+      setNow(currentNow());
+      gameStore.resolveConstruction(currentNow());
+      gameStore.resolveRepair(currentNow());
+      gameStore.resolveMasterSearch(currentNow());
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [devClock]);
+
   function applyDevClockShift(deltaMs: number) {
-    if (deltaMs !== 0) shiftDevClock(deltaMs);
-    gameStore.resolveConstruction(devNow());
-    gameStore.resolveRepair(devNow());
-    gameStore.resolveMasterSearch(devNow());
-    setNow(devNow());
+    if (!devClock) return;
+    if (deltaMs !== 0) devClock.shiftDevClock(deltaMs);
+    const now = devClock.devNow();
+    gameStore.resolveConstruction(now);
+    gameStore.resolveRepair(now);
+    gameStore.resolveMasterSearch(now);
+    setNow(now);
   }
 
   useEffect(() => {
@@ -247,14 +262,14 @@ export function App() {
           <div><button onClick={downloadSave}>Export save</button><button onClick={() => saveFileInput.current?.click()}>Import save</button><input ref={saveFileInput} aria-label="Import save file" type="file" accept="application/json,.json" hidden onChange={(event) => { void uploadSave(event.target.files?.[0]); event.currentTarget.value = ""; }} /></div>
         </section>
           {import.meta.env.DEV && <section className="save-panel" aria-label="Dev time travel">
-            <header><span>DEV: TIME TRAVEL</span><small>{devClockOffsetHours() >= 0 ? "+" : ""}{devClockOffsetHours().toFixed(1)}h</small></header>
+            <header><span>DEV: TIME TRAVEL</span><small>{devClock ? `${devClock.devClockOffsetHours() >= 0 ? "+" : ""}${devClock.devClockOffsetHours().toFixed(1)}h` : "Loading…"}</small></header>
             <p>Skips real-time construction/repair/Master-search timers only - never invents game weeks. Dev builds only, never shipped to production.</p>
             <div>
-              <button onClick={() => applyDevClockShift(-60 * 60 * 1000)}>-1h</button>
-              <button onClick={() => applyDevClockShift(60 * 60 * 1000)}>+1h</button>
-              <button onClick={() => applyDevClockShift(6 * 60 * 60 * 1000)}>+6h</button>
-              <button onClick={() => applyDevClockShift(24 * 60 * 60 * 1000)}>+24h</button>
-              <button onClick={() => { resetDevClock(); applyDevClockShift(0); }}>Reset</button>
+              <button disabled={!devClock} onClick={() => applyDevClockShift(-60 * 60 * 1000)}>-1h</button>
+              <button disabled={!devClock} onClick={() => applyDevClockShift(60 * 60 * 1000)}>+1h</button>
+              <button disabled={!devClock} onClick={() => applyDevClockShift(6 * 60 * 60 * 1000)}>+6h</button>
+              <button disabled={!devClock} onClick={() => applyDevClockShift(24 * 60 * 60 * 1000)}>+24h</button>
+              <button disabled={!devClock} onClick={() => { devClock?.resetDevClock(); applyDevClockShift(0); }}>Reset</button>
             </div>
           </section>}
         </>}
@@ -374,7 +389,7 @@ export function App() {
               const module = modules.find((entry) => entry.id === project.moduleId);
               // `now` triggers the once-per-second re-render; the countdown itself must use the
               // current instant so a just-started three-hour project never displays as four hours.
-              const remainingMs = Math.max(0, project.completesAt - devNow());
+              const remainingMs = Math.max(0, project.completesAt - presentNow);
               const remainingText = remainingMs < 60 * 60 * 1000 ? `${Math.ceil(remainingMs / 60_000)} min` : `${Math.ceil(remainingMs / (60 * 60 * 1000))} h`;
               return <div key={project.moduleId}><span>{module?.name} · {remainingText}</span><button className="action-button" onClick={() => gameStore.rushConstruction(project.moduleId)}>Rush · ${Math.ceil((module?.economy.price ?? 0) * 0.25).toLocaleString("en-US")}</button></div>;
             })}

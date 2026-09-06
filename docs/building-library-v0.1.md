@@ -60,7 +60,7 @@ Water Plot separately owns the Floating Recovery Pontoon and Floating Spa Pool. 
 1. Water Plot owns the safe dip zone and safety boundary. The Floating Sauna's own deck owns a direct jump/step-in anchor and fixed ladder-return anchor, so guests visibly enter the sea from the sauna itself. The fixed gangway exists in base art; its lighting/planter layer remains a building-facing visual upgrade.
 2. Wave-Form Timber Shell: a single exterior layer across the existing pods, creating sheltered sitting niches and a distinctive silhouette without more building volume.
 3. Sliding Deck Screens on the Existing Floating Deck: visible open/closed wind/privacy state and sheltered recovery anchors.
-4. Small Evening Aufguss Platform between Existing Pods: a quiet, small-group outdoor program field with steam/light effects; not an extra sauna.
+4. Small Evening Outdoor Gus Sauna between Existing Pods: a quiet, small-group enclosed outdoor-sited sauna with steam/light effects; not an extra building volume.
 
 Do not add more warm/cold bathing facilities to the Floating Sauna building. The Floating Spa Pool and Floating Recovery Pontoon belong to Water Plot.
 
@@ -81,13 +81,13 @@ Rooftop Sauna is the only base for Hotel Rooftop. It starts around 15-22 simulta
 9. Sliding Screens before the Skyline Glass Front.
 10. Glowing Lift-Arrival Portal at the Existing Core.
 
-Hotel Rooftop separately owns its viewing deck, shower, cold plunge, warm rooftop spa, pergola, planting, lighting and outdoor program deck.
+Hotel Rooftop separately owns its viewing deck, shower, cold plunge, warm rooftop spa, pergola, planting, lighting and enclosed rooftop Outdoor Gus Sauna field.
 
 ### Approved Rooftop Sauna Revision
 
 1. The Third Compact Sauna is available only on a separately authored structurally suitable roof field.
 2. Small Connected Recovery Annex is removed because the Glass Recovery Room already fulfils its role.
-3. Small Sky Aufguss Alcove sits beside the Program Sauna Pavilion on its own fixed exterior field; it is a sheltered small-group program point, not the larger location-owned outdoor program deck.
+3. Small Sky Outdoor Gus Sauna sits beside the Program Sauna Pavilion on its own fixed exterior field; it is a sheltered small-group sauna, not the larger location-owned rooftop Outdoor Gus Sauna.
 
 Rooftop Sauna is deliberately exclusive: restrained dark timber, pale stone/concrete, bronze/dark metal details, large controlled glass surfaces and warm low evening light. Its luxury comes from precise materials, shelter and skyline composition, not scattered novelty props or generic coloured LEDs.
 
@@ -220,7 +220,7 @@ Pavilion is an existing low, outward-facing building suited to Forest Lake, Coas
 
 These additions use the pavilion's outward-facing form and only appear where the setting supports them:
 
-1. Open Aufguss Stage beneath a Broad Canopy: a visible social program space.
+1. Enclosed Outdoor Gus Sauna beneath a Broad Canopy: a visible social program space.
 2. Folding Panorama Facades: a premium opening facade toward credible lake, coast or beach views.
 3. Sunken Fire Circle: a contained evening recovery/social area.
 4. Integrated Deck Wild Bath: the shared warm-recovery facility built into the pavilion terrace.
@@ -264,7 +264,7 @@ Repair Workshop is a compact former handcraft base for Canal and Industrial Dist
 3. Extra Sauna Room.
 4. Program Sauna.
 5. Glass Doors in the Original Port.
-6. Glass Dome over an Existing Workshop Roof/Port Field.
+6. Roof Material and Lantern Treatment on the Existing Workshop Shell.
 7. Open Workshop-Port Recovery Field.
 8. Copper-Pipe Rain Shower.
 9. Compact Cold-Plunge Tub.
@@ -272,18 +272,18 @@ Repair Workshop is a compact former handcraft base for Canal and Industrial Dist
 
 ### Approved Repair Workshop Signature Additions
 
-Each addition uses either the workshop's visible yard or a pre-authored roof/port field; it never creates a new undefined industrial area:
+Each addition uses either the workshop's visible yard, port or facade/roof-material layer; it never creates a new undefined industrial area:
 
 1. Existing Workshop Courtyard as Outdoor Aufguss Space.
 2. Copper-Pipe Rain Shower attached to the existing workshop exterior.
 3. Warm Wild Bath in the Existing Workshop Courtyard.
-4. Glass Dome over an Existing Workshop Roof/Port Field: an enclosed premium recovery volume using an authored building anchor.
+4. Roof Material and Lantern Treatment: a stronger dark-slate, chimney and warm-light state on the permanent roof silhouette. It has no guest route or activity anchor.
 5. Open Workshop-Port Recovery Field: existing port opened/activated as a covered recovery zone with benches and steam.
 6. Restored Workshop Oven/Chimney at an Existing Wall or Roof Anchor: a stronger visible heat/steam identity, without a production bonus.
 7. Industrial Water Wall at an Existing Courtyard Wall: a narrow cold-recovery route with water-flow effect.
 8. Industrial Greenery Field: large planters, climbers or tough grasses only on authored courtyard/wall fields; it improves presentation and recovery atmosphere without a hidden operations stat.
 
-The Roof Terrace and generic Glass Recovery Wing are removed. They either required an unapproved catwalk route or duplicated the more specific Glass Dome.
+The Roof Terrace and generic Glass Recovery Wing are removed. They require an unapproved catwalk route or duplicate a valid exterior recovery field.
 
 ## Locked Building Module Set: Small Depot
 

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Guest Rig 01 Walk Test</title>
+    <style>
+      :root { color-scheme: dark; font-family: Georgia, serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #171817; color: #f3eadb; }
+      main { width: min(100%, 620px); border: 1px solid #6f5b43; background: #2d251e; box-shadow: 0 18px 48px #0008; }
+      header { padding: 20px 22px 15px; border-bottom: 1px solid #6f5b43; }
+      h1 { margin: 0; font-size: clamp(22px, 6vw, 34px); font-weight: 500; }
+      p { margin: 7px 0 0; color: #cdbba5; line-height: 1.45; }
+      .stage { display: grid; min-height: 410px; place-items: center; padding: 20px; background: #10100f; }
+      canvas { width: 272px; height: 362px; image-rendering: pixelated; image-rendering: crisp-edges; }
+      .controls { display: flex; justify-content: space-between; gap: 12px; padding: 15px 22px 20px; border-top: 1px solid #6f5b43; color: #d8c2a7; font-size: 14px; }
+      kbd { border: 1px solid #967856; border-bottom-width: 3px; border-radius: 3px; padding: 1px 5px; background: #3d3027; color: #fff6e6; font: 12px ui-monospace, monospace; }
+      @media (max-width: 420px) { body { padding: 0; } main { min-height: 100vh; border: 0; } .controls { align-items: flex-start; flex-direction: column; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Guest Rig 01: South Walk</h1>
+        <p>Eight generated frames played at walking speed. This is the first rhythm test only: it must be approved before the seven remaining direction strips are produced.</p>
+      </header>
+      <section class="stage" aria-label="Animated South-facing walk preview">
+        <canvas id="sprite" width="272" height="362"></canvas>
+      </section>
+      <section class="controls">
+        <span><kbd>Space</kbd> pause or play</span>
+        <span id="readout">Frame 1 of 8</span>
+      </section>
+    </main>
+    <script>
+      const canvas = document.querySelector("#sprite");
+      const context = canvas.getContext("2d");
+      const readout = document.querySelector("#readout");
+      context.imageSmoothingEnabled = false;
+
+      const sheet = new Image();
+      let frame = 0;
+      let playing = true;
+      let sourceWidth = 0;
+      let lastFrameAt = 0;
+      let horizontalOffsets = [];
+      let verticalOffsets = [];
+
+      function measureFrameCenters() {
+        const analysis = document.createElement("canvas");
+        analysis.width = sheet.naturalWidth;
+        analysis.height = sheet.naturalHeight;
+        const analysisContext = analysis.getContext("2d", { willReadFrequently: true });
+        analysisContext.drawImage(sheet, 0, 0);
+        const pixels = analysisContext.getImageData(0, 0, analysis.width, analysis.height).data;
+        const centers = [];
+        const footBaselines = [];
+
+        for (let index = 0; index < 8; index += 1) {
+          const start = Math.round(index * sourceWidth);
+          const end = Math.round((index + 1) * sourceWidth);
+          let left = end;
+          let right = start;
+          let lowestOutline = 0;
+          for (let y = 0; y < analysis.height; y += 1) {
+            for (let x = start; x < end; x += 1) {
+              const offset = (y * analysis.width + x) * 4;
+              const isOutline = pixels[offset] < 82 && pixels[offset + 1] < 82 && pixels[offset + 2] < 82;
+              if (!isOutline) continue;
+              left = Math.min(left, x);
+              right = Math.max(right, x);
+              lowestOutline = Math.max(lowestOutline, y);
+            }
+          }
+          centers.push((left + right) / 2 - start);
+          footBaselines.push(lowestOutline);
+        }
+
+        const target = centers.reduce((sum, center) => sum + center, 0) / centers.length;
+        horizontalOffsets = centers.map((center) => target - center);
+        const groundLine = Math.max(...footBaselines);
+        verticalOffsets = footBaselines.map((baseline) => groundLine - baseline);
+      }
+
+      function render() {
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        const scaledOffset = horizontalOffsets[frame] * (canvas.width / sourceWidth);
+        const scaledBaselineOffset = verticalOffsets[frame] * (canvas.height / sheet.naturalHeight);
+        context.drawImage(sheet, frame * sourceWidth, 0, sourceWidth, sheet.naturalHeight, scaledOffset, scaledBaselineOffset, canvas.width, canvas.height);
+        readout.textContent = `Frame ${frame + 1} of 8`;
+      }
+
+      function tick(timestamp) {
+        if (playing && timestamp - lastFrameAt >= 112) {
+          frame = (frame + 1) % 8;
+          lastFrameAt = timestamp;
+          render();
+        }
+        requestAnimationFrame(tick);
+      }
+
+      window.addEventListener("keydown", (event) => {
+        if (event.code !== "Space" || event.repeat) return;
+        event.preventDefault();
+        playing = !playing;
+      });
+
+      sheet.addEventListener("load", () => {
+        sourceWidth = sheet.naturalWidth / 8;
+        measureFrameCenters();
+        render();
+        requestAnimationFrame(tick);
+      });
+      sheet.src = "./guest-rig-01-walk-s-v02.png";
+    </script>
+  </body>
+</html>

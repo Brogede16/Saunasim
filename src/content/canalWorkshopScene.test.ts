@@ -15,8 +15,8 @@ describe("Canal Workshop scene contract", () => {
   it("gives every current visible module a dedicated field and activity anchor", () => {
     const implementedModules = canalWorkshopScene.fields.flatMap((field) => "module" in field ? [field.module] : []);
     expect(implementedModules).toEqual(["arrival", "shop", "program", "aufguss-yard", "shower", "cold-plunge"]);
-    expect(canalWorkshopScene.routes.program).toContain("program-door");
-    expect(canalWorkshopScene.routes.outdoorGus).toContain("gus-master-yard");
+    expect(canalWorkshopScene.routes.program).toEqual(["workshop-door", "workshop-side-walk", "program-door"]);
+    expect(canalWorkshopScene.routes.outdoorGus).toEqual(["workshop-door", "workshop-side-walk", "gus-master-yard"]);
     expect(canalWorkshopScene.routes.shower).toContain("shower-workshop");
     expect(canalWorkshopScene.routes.coldPlunge).toContain("cold-plunge-a");
     expect(canalWorkshopScene.routes.canalWater).toEqual(["canal-bridge-entry", "canal-water-idle", "canal-bridge-exit"]);

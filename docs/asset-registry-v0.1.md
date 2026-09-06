@@ -137,7 +137,7 @@ Each row is a distinct production asset. The card key gives its gameplay contrac
 | Fire courtyard with steel bowl/long benches | REST | Evening fire loop, bench anchors and smoke/ember effect |
 | Courtyard-deck wild bath | WARM | Reuses Wild Bath mechanics; seated anchors, steam, bubbles and splash |
 | Low courtyard canopy with long benches | REST | Container-aligned canopy, sheltered seating and social anchors |
-| Fixed Aufguss wind/privacy screens | GUS | Part of outdoor program deck; visible shelter and timed steam backdrop |
+| Fixed Aufguss wind/privacy screens | GUS | Part of an enclosed Outdoor Gus Sauna field; visible shelter and timed steam backdrop |
 | Integrated evening edge lighting | LIGHT | Under-step, stair and shop-hatch light anchors; wayfinding and evening presentation |
 
 ### Small Timber Cabin
@@ -169,7 +169,7 @@ Each row is a distinct production asset. The card key gives its gameplay contrac
 | Fixed outdoor shower | SHWR | Rinse loop and water effect |
 | Compact cold-plunge tub | COLD | Plunge loop and splash anchors |
 | Glass recovery wing | REST | Attached wing and seated anchors |
-| Open Aufguss stage beneath broad canopy | GUS | Outdoor program point, audience/arrival anchors and timed steam |
+| Enclosed Outdoor Gus Sauna beneath broad canopy | GUS | Outdoor-sited sauna, guest/Master arrival anchors and timed steam |
 | Folding panorama facades | PREM | Open/closed facade state on credible view side |
 | Sunken fire circle | REST | Bench anchors, evening fire loop and ember effect |
 | Integrated-deck wild bath | WARM | Reuses Wild Bath mechanics; seated anchors, steam, bubbles and splash |
@@ -211,7 +211,7 @@ Each row is a distinct production asset. The card key gives its gameplay contrac
 | Existing workshop courtyard as outdoor Aufguss space | GUS | Requires authored workshop-yard footprint; program point, guest anchors and timed steam |
 | Copper-pipe rain shower | SHWR | Attached to visible workshop exterior; rinse loop, falling-water and splash effects |
 | Workshop-courtyard wild bath | WARM | Requires authored courtyard footprint; reuses Wild Bath mechanics |
-| Glass dome over existing workshop roof/port field | PREM + REST | Requires a defined roof/port anchor; enclosed recovery seating and glass-light overlay |
+| Glass-roofed recovery box in the existing workshop courtyard/port field | PREM + REST | Requires a defined ground-level courtyard or port anchor; enclosed recovery seating and glass-light overlay. It is never a roof activity. |
 | Open workshop-port recovery field | REST | Existing port field opens to covered bench/recovery anchors and steam |
 | Restored workshop oven/chimney | LIGHT | Existing wall/roof anchor; stronger chimney steam and warm evening identity |
 | Industrial water wall | COLD | Existing courtyard wall; water-flow effect, rinse/cold-recovery anchor and return route |
@@ -319,7 +319,7 @@ Location-owned objects follow the same rule: they are individual production asse
 | Cooling path | COLD | Route patch between sauna/shower/lake |
 | Forest clearing/fire circle | REST | Bench and fire-side anchors |
 | Covered lakeside shelter | REST | Covered seating anchors |
-| Outdoor program space | GUS | Program point and timed steam |
+| Enclosed lakeside Outdoor Gus Sauna | GUS | Program entry point and timed steam |
 
 ### Urban Lot
 
@@ -333,7 +333,7 @@ Location-owned objects follow the same rule: they are individual production asse
 | Covered recovery pergola | REST | Covered recovery anchors |
 | Urban shower | SHWR | Rinse loop and water effect |
 | Compact built cold plunge | COLD | Plunge loop and splash anchors |
-| Outdoor program deck | GUS | Program point and timed steam |
+| Enclosed urban Outdoor Gus Sauna | GUS | Program entry point and timed steam |
 | Boundary wall/mural | DECOR | Plot boundary identity overlay |
 
 ### Hotel Rooftop
@@ -349,7 +349,7 @@ Location-owned objects follow the same rule: they are individual production asse
 | Recovery pergola | REST | Covered seating anchors |
 | Planters | DECOR | Roof identity overlay |
 | Evening lighting | LIGHT | Evening light anchors |
-| Outdoor rooftop program deck | GUS | Program point and timed steam |
+| Enclosed rooftop Outdoor Gus Sauna | GUS | Program point, entry and timed steam |
 
 ### Canal Location
 
@@ -358,7 +358,6 @@ Location-owned objects follow the same rule: they are individual production asse
 | Narrow canal terrace | REST | Authored quay field; seated/standing recovery anchors |
 | Canal shower/cooling point | SHWR | Separate quay/terrace field; rinse loop and water effects |
 | Canal bathing bridge | COLD | Full descent, entry, swim/idle, exit and winter state where appropriate |
-| Small canal descent with broad sitting edges | COLD + REST | Independent water-entry field; steps, sit, swim/idle and exit anchors |
 | Low quay-light line | LIGHT | Existing promenade edge; evening wayfinding and canal reflection effects |
 | Canal planting beds | PREM + REST | Existing quay-edge fields; grasses/plants without obstructing the quay |
 
@@ -367,7 +366,7 @@ Location-owned objects follow the same rule: they are individual production asse
 | Concrete variant | Card | Visual/route requirement |
 | --- | --- | --- |
 | Quay terrace | REST | Authored quay field; durable seated/standing recovery anchors |
-| Quay Aufguss stage with wind screens | GUS | Separate quay program field; guest anchors, screens and timed steam |
+| Enclosed quay Outdoor Gus Sauna | GUS | Separate quay sauna field; guest/Master anchors, screens and timed steam |
 | Harbour steps | COLD | Eligible bathing-basin field; descent, entry, swim/idle and exit anchors |
 | Harbour shower row | SHWR | Defined quay shower fields; repeated rinse anchors and water effects |
 | Low quay lantern line | LIGHT | Existing promenade/quay edge; evening wayfinding and water reflections |
@@ -379,7 +378,7 @@ Location-owned objects follow the same rule: they are individual production asse
 | Concrete variant | Card | Visual/route requirement |
 | --- | --- | --- |
 | Industrial arrival court | ARR | Separate gate/sign/walkway field; complete street-to-venue route |
-| Large shared program yard | GUS | Authored open-yard field; large program anchors, timed steam and guest capacity |
+| Large enclosed Outdoor Gus Sauna | GUS | Authored yard field; large program anchors, timed steam and guest capacity |
 | Steel-canopy shower row | SHWR | Separate repeated shower fields; rinse anchors and falling-water effects |
 | Long constructed cold basin | COLD | Separate concrete/steel yard field; multiple entry/exit anchors and water effects |
 | Sunken industrial-yard warm spa pool | WARM | Large authored yard field only; seated anchors, steam, bubbles and splash |
@@ -400,7 +399,7 @@ Location-owned objects follow the same rule: they are individual production asse
 | Floating rest platform | REST | Authored water platform, sit/stand anchors and safe access route |
 | Forest clearing/fire circle | REST | Fixed clearing field; fire, bench and evening anchors |
 | Covered lakeside shelter | REST | Fixed shore field; covered recovery anchors |
-| Outdoor program space by lake | GUS | Separate shore/clearing field; program anchors and timed steam |
+| Enclosed lakeside Outdoor Gus Sauna | GUS | Separate shore/clearing sauna field; program anchors and timed steam |
 | Rock-edged warm spa pool | WARM | Large clearing field only; seated anchors, steam, bubbles and splash |
 | Forest shower row under timber eave | SHWR | Existing eave/shower fields; repeated rinse anchors and effects |
 | Quiet stone/bench circle at water | REST | Fixed shore field; quiet seated/viewing anchors with no fire |
@@ -417,7 +416,7 @@ Location-owned objects follow the same rule: they are individual production asse
 | Coastal shower row | SHWR | Separate low-roof shower fields; rinse anchors and water effects |
 | Wind/changing shelter | ARR + REST | Fixed shore field; change transition and sheltered anchors |
 | Cliff/rock sitting niche | REST | Fixed rock field; quiet seated/viewing anchors |
-| Outdoor program deck behind wind screens | GUS | Separate protected program field; timed steam and guest anchors |
+| Enclosed screened Outdoor Gus Sauna | GUS | Separate protected sauna field; timed steam and guest anchors |
 | Low coastal lantern line | LIGHT | Existing terrace/path edge; warm evening orientation |
 | Rock/stone-integrated warm spa pool | WARM | Fixed sheltered terrace field; seated anchors, steam, bubbles and splash |
 | Stone/timber wind wall | REST + PREM | Existing sitting field; shelter without blocking outlook |
@@ -435,7 +434,7 @@ Location-owned objects follow the same rule: they are individual production asse
 | Changing/wind shelter | ARR + REST | Fixed beach field; change transition and sheltered seating anchors |
 | Sun/recovery zone | REST | Existing beach field; recovery activity anchors |
 | Dune sitting niches | REST | Fixed dune-edge fields; quiet seated/viewing anchors |
-| Outdoor program deck | GUS | Separate beach program field; guest anchors and timed steam |
+| Enclosed beach Outdoor Gus Sauna | GUS | Separate beach sauna field; guest anchors and timed steam |
 | Floating platform | REST + COLD | Calm-cove field only; short fixed access, safe anchors and water effects |
 | Evening beach lights | LIGHT | Existing deck/path edge; warm evening orientation |
 | Freestanding beach warm spa pool | WARM | Fixed sheltered beach field; seats, steam, bubbles and splash |
@@ -454,13 +453,12 @@ Location-owned objects follow the same rule: they are individual production asse
 | Living windbreak planting | PREM + REST | Existing edge fields; planting/shelter without concealing routes |
 | Rural shower fields/long shower row | SHWR | Separate timber-eave fields; repeated rinse anchors and effects |
 | Constructed cold plunge | COLD | Fixed yard/garden field; entry/exit anchors and water effects |
-| Outdoor program field | GUS | Separate yard/field-edge field; program anchors and timed steam |
+| Enclosed field-edge Outdoor Gus Sauna | GUS | Separate yard/field-edge sauna field; program anchors and timed steam |
 | Fire circle | REST | Fixed safe field; fire, log seating and evening anchors |
 | Covered outdoor recovery area | REST | Fixed field; sheltered seating anchors |
 | Sunken warm spa pool | WARM | Fixed garden/terrace field; seated anchors, steam, bubbles and splash |
 | Orchard recovery zone | REST + PREM | Existing orchard field; bench/lounge anchors beneath fruit trees |
 | Barn/field-edge program yard | GUS | Separate authored field; group program anchors and timed steam |
-| Spring/cold-water pocket | COLD | Rare base-geography field only; entry/rinse/idle/exit anchors and water effects |
 | Rural planting fields | PREM + REST | Existing edges; fruit trees/grasses/wildflowers without blocking routes |
 
 ### Water Plot Location
@@ -474,7 +472,7 @@ Location-owned objects follow the same rule: they are individual production asse
 | Small shore changing cabin | ARR | Existing shore-landing field; hidden changing transition and clear approach/exit anchors |
 | Shore shower at gangway root | SHWR | Existing gangway-root field; rinse loop and water effects |
 | Floating fire bowl with sitting edges | REST | Separate pontoon field; contained fire, seating and evening anchors |
-| Outdoor Aufguss platform on pontoon | GUS | Separate pontoon field; larger group program anchors and timed steam |
+| Enclosed pontoon Outdoor Gus Sauna | GUS | Separate pontoon sauna field; larger group program anchors and timed steam |
 
 ### Urban Lot Location
 
@@ -486,7 +484,7 @@ Location-owned objects follow the same rule: they are individual production asse
 | Low urban canopy with long benches | REST | Replaces generic pergola on fixed field; sheltered seating anchors |
 | Urban shower | SHWR | Separate owned-plot field; rinse loop and water effects |
 | Compact built cold plunge | COLD | Fixed yard field; entry/exit anchors and water effects |
-| Outdoor program deck | GUS | Separate owned-plot field; program anchors and timed steam |
+| Enclosed urban Outdoor Gus Sauna | GUS | Separate owned-plot sauna field; program anchors and timed steam |
 | Boundary wall/mural | PREM | Owned wall field; visual identity without hidden income |
 | Steel-and-brick fire courtyard | REST | Separate owned yard field; contained fire, seating and evening anchors |
 | Urban wild-bath alcove | WARM | Separate screened field; seated anchors, steam, bubbles and splash |
@@ -505,7 +503,7 @@ Location-owned objects follow the same rule: they are individual production asse
 | Extra wind screens | REST | Separate roof fields; sheltered niche anchors |
 | Planted roof corners | PREM + REST | Existing roof-edge fields; planters and recovery atmosphere |
 | Evening roof lighting | LIGHT | Existing walkway/deck edges; controlled warm evening orientation |
-| Outdoor rooftop program deck | GUS | Separate roof field; program anchors and timed steam |
+| Enclosed rooftop Outdoor Gus Sauna | GUS | Separate roof sauna field; program anchors and timed steam |
 | Skyline lounge chairs/parasols | REST + PREM | Separate roof field; small number of reclined/sitting anchors and parasol shade |
 | Gas fire bowl with stone seating | REST | Separate fire-safe roof field; contained fire, seating and evening anchors |
 | Water refill station at lift core | ARR + REST | Existing lift-core field; brief refill/recovery anchors and robe/towel detail |

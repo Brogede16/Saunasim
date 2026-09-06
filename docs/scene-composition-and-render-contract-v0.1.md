@@ -4,13 +4,15 @@
 
 Exterior scenes must remain correct as buildings and upgrades are bought in any order. This is solved with authored scene data, not by manually guessing from final artwork.
 
-Every location/base-building combination has a scene file. Art layers, module fields, routes, collision, character depth and effect anchors are all recorded in the same coordinate space.
+Every location has one reusable base-scene file plus placement profiles for every compatible building base. Art layers, module fields, routes, collision, character depth and effect anchors are all recorded in the same coordinate space. A profile may place the same compatible building in a different sensible position; it does not require a separately painted location.
 
 ## 1. Scene Coordinate System
 
 - Every scene uses a fixed tile grid and pixel coordinate system. The Canal Workshop specification's `60 x 40` grid is the reference implementation.
-- A location base defines the world bounds, camera bounds, water/ground regions, structural building anchor and all possible upgrade fields before final art is produced.
-- A building base and every upgrade attach only to an approved field with a fixed origin, footprint and draw order.
+- A location base defines the world bounds, camera bounds, water/ground regions, protected location-owned fields and all possible upgrade fields before final art is produced.
+- A placement profile selects an approved build zone for one compatible building base, with a fixed origin, maximum envelope, orientation, route connection and draw order.
+- A building base and every building-owned upgrade attach only to its approved local slot; location-owned upgrades attach only to their separate reserved field.
+- World sprites are placed at native scale only. The renderer may translate, depth-sort or use an approved mirror state, but it may not individually scale a building, prop or character to resolve a layout conflict. Camera zoom is the only scene-scale transform and applies uniformly to every world layer.
 - No code or artist is allowed to move an upgrade by eye after a field has been approved. A corrected position changes the scene data and is reviewed as a layout change.
 
 ## 2. Required Data Per Field
@@ -20,7 +22,9 @@ Each base, building and upgrade field contains:
 | Data | Why it exists |
 | --- | --- |
 | `fieldId`, owner and compatible tags | Prevents wrong location/building combinations. |
-| Rectangle/polygon footprint | Prevents building and upgrade overlap. |
+| Feature class and base/module/foreground layers | Keeps trees, rocks, dunes, walls, water edges and other existing art protected or credibly integrated. |
+| Rectangle/polygon footprint and maximum envelope | Prevents building and upgrade overlap, including later building-owned modules. |
+| Native tile dimensions and fixed pivot | Keeps every object at the same guest-relative scale; a larger facility requires a larger authored state, not a renderer scale factor. |
 | Walkable, blocked and water patches | Prevents paths through walls or unsupported water. |
 | Building/prop draw baseline | Keeps the object in a stable depth layer. |
 | Entry, activity and exit anchors | Makes guest/staff actions use a real place. |
@@ -84,14 +88,15 @@ Examples:
 
 Before a scene/module is accepted, development checks:
 
-1. No two compatible module footprints overlap.
-2. A module stays within the scene's approved field and camera bounds.
+1. No two compatible module footprints overlap, including the full envelope of the selected building profile.
+2. A module stays within its building slot or location-owned field and camera bounds; a protected feature is never consumed by its footprint.
 3. Every functional asset has entry, activity and exit/return anchors.
 4. Every route uses walkable patches and does not cross blocked structure or unsupported water.
 5. Water facilities have entry, activity, exit and waterline-mask data.
 6. Every required effect has an existing anchor, valid depth band and matching effect asset.
 7. Towel props only appear on compatible authored anchors and never block a route.
 8. A Technician target is an eligible technical asset with a valid work position.
+9. An integrated module has its required base, module and foreground/occlusion layers, so it cannot visually cover a tree, rock, dune, wall or water edge by accident.
 
 Validation catches structural errors. It does not replace visual review.
 

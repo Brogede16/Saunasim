@@ -1,0 +1,21 @@
+[
+  {
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "status": "passed",
+    "pageErrors": []
+  },
+  {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "status": "passed",
+    "pageErrors": []
+  },
+  {
+    "damagedSaveBoot": "passed"
+  }
+]

@@ -50,7 +50,7 @@ export function evaluateProgramDelivery(program: ActiveProgram, built: readonly 
     note = "The advertised recovery finish is not physically available at this venue.";
   } else if (program.intent === "Show Journey" && !built.includes("program") && !built.includes("aufguss-yard")) {
     venueFit = "Bad";
-    note = "This show promise needs a visible program room or outdoor Gus field.";
+    note = "This show promise needs a visible program room or Outdoor Gus Sauna.";
   } else if (program.intent === "Quiet Recovery" && built.includes("shower") && built.includes("cold-plunge") && built.includes("program") && occupancy <= 75) {
     venueFit = "Iconic";
     note = "The dedicated room and complete recovery route make this a distinctive calm experience.";

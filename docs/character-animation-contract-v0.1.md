@@ -19,7 +19,7 @@ It defines reusable character actions and authored route/interaction anchors. A 
 
 | ID | Action | Used by | Required by |
 | --- | --- | --- | --- |
-| `walk-4dir` | Four-direction walk | All land characters | Every venue and route. |
+| `walk-8dir` | Eight-bearing, eight-phase planted-foot walk. Only `S`, `SE`, `E`, `NE`, `N` are drawn; the western three are mirrored at runtime. | All land characters | Every venue and route. |
 | `idle-stand` | Short standing/looking loop | All characters | Arrival, queue, waiting and staff pauses. |
 | `door-enter-exit` | Walk into/appear from doorway threshold | Guests, Masters, Hosts, Technicians | All building entry/exit and indoor facilities. |
 | `queue-shift` | Small forward step/look loop | Guests | Reception, program and capacity queues. |
@@ -63,8 +63,8 @@ Guests never freely roam open water. Every water action is bounded by the specif
 | ID | Action | Notes |
 | --- | --- | --- |
 | `master-walk` / `master-idle` | Tool-ready movement/idle | Uses shared body base. |
-| `master-field-arrive` | Enter the outdoor Gus field and take position | Required before every visible outdoor session. |
-| `master-prepare` | Short bucket/towel setup loop | Shared preparation pose at the field anchor. |
+| `master-field-arrive` | Approach the Outdoor Gus Sauna and take position | Required before every visible outdoor session. |
+| `master-prepare` | Short bucket/towel setup loop | Shared preparation pose at the optional Master Ritual Station, then an exterior door transition into the sauna. |
 | `master-towel-classic` | Classic towelwork delivery | Supports Classic Towelwork and Quiet Ritual. |
 | `master-fan-heat` | Fan-assisted heat distribution | Supports Steady Heat, Rhythmic Pulses and High-Heat Finale. |
 | `master-infusion` | Ladle/ice/herb infusion delivery | Supports aroma rounds and heat transitions. |
@@ -80,11 +80,11 @@ The actual equipped towel set, hand fan or infusion kit is a transparent overlay
 
 | ID | Action | Asset/venue trigger |
 | --- | --- | --- |
-| `host-arrival-guide` | Brief welcoming/queue-guidance gesture | Entry/reception when a Host is scheduled. |
-| `host-shop-handoff` | Visible sale/towel/product handoff | Reception shop or exterior service hatch. |
-| `host-towel-collect` | Pick up/fold visible towel prop | Authored recovery/seating field only. |
-| `host-seat-reset` | Short straighten/reset loop | Bench, lounge, fire or recovery field after use. |
-| `host-water-service` | Refill/refreshment handoff | Water-service or eligible recovery field only. |
+| `staff-host-arrival-guide` | Brief welcoming/queue-guidance gesture | Entry/reception when a Host is scheduled. |
+| `staff-host-shop-handoff` | Visible sale/towel/product handoff | Reception shop or exterior service hatch. |
+| `staff-host-towel-collect` | Pick up/fold visible towel prop | Authored recovery/seating field only. |
+| `staff-host-seat-reset` | Short straighten/reset loop | Bench, lounge, fire or recovery field after use. |
+| `staff-host-water-service` | Refill/refreshment handoff | Water-service or eligible recovery field only. |
 
 Hosts do not walk endlessly to fake activity. The simulation samples one useful visible task where it reflects actual entry, shop or guest-comfort work.
 
@@ -92,12 +92,12 @@ Hosts do not walk endlessly to fake activity. The simulation samples one useful 
 
 | ID | Action | Eligible target |
 | --- | --- | --- |
-| `tech-arrive` | Enters scene with tool bag, walks to assigned field | Any active repair. |
-| `tech-inspect` | Brief inspection/check loop | Sauna heater/program equipment, shower, cold/warm recovery, shop equipment or water-system asset. |
-| `tech-repair-ground` | Kneel/tool loop | Ground-level technical asset. |
-| `tech-repair-wall` | Standing panel/pipe loop | Shower wall, shop equipment, water wall or service panel. |
-| `tech-repair-roof` | Safe roof-field tool loop | Hotel Rooftop or authored roof upgrade only. |
-| `tech-complete-leave` | Pack tools, restored-state cue, return route | All repaired assets. |
+| `staff-tech-arrive` | Enters scene with tool bag, walks to assigned field | Any active repair. |
+| `staff-tech-inspect` | Brief inspection/check loop | Sauna heater/program equipment, shower, cold/warm recovery, shop equipment or water-system asset. |
+| `staff-tech-repair-ground` | Kneel/tool loop | Ground-level technical asset. |
+| `staff-tech-repair-wall` | Standing panel/pipe loop | Shower wall, shop equipment, water wall or service panel. |
+| `staff-tech-repair-roof` | Safe roof-field tool loop | Hotel Rooftop or authored roof upgrade only. |
+| `staff-tech-complete-leave` | Pack tools, restored-state cue, return route | All repaired assets. |
 
 Technicians do not maintain planters, benches, facade paint, fire pits or decorative lights. A technician task has one assigned field and does not create a visible permanent repair queue.
 

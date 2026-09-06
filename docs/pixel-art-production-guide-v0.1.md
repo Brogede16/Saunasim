@@ -13,7 +13,9 @@ The target is a readable, original 16-bit top-down sauna management game: warm, 
 - Screen density: assets are authored at the fixed native game scale and enlarged with nearest-neighbour sampling. Retina/high-density displays do not require higher-detail replacement sprites or anti-aliased art; device-specific canvas tuning is a renderer QA concern, not a second art pipeline.
 - Readability: clear silhouettes and broad colour areas at normal gameplay size; detail should support, not obscure, the shape.
 - Character scale: all land-character frames share one fixed foot anchor; all water frames share one fixed waterline.
+- World-scale lock: the first guest base is `28 px` tall inside a `32 x 32 px` frame and every world asset is authored against the same native `16 x 16 px` tile grid. A bench, pool, bridge and building may never be individually scaled smaller or larger in the renderer to make it fit a scene. A larger facility is a separately drawn multi-tile state/variant at the same character scale.
 - Scene scale: each venue is a larger exterior location with a controlled, mobile-friendly zoom range. Buildings, props and guests are composed in layers; the default view frames the whole active venue and its current upgrades.
+- Camera scale: zoom scales the **entire world** uniformly with nearest-neighbour sampling. It changes what the player can see, never the proportion of a person relative to a pool, bench or building.
 - Scene construction: build a reusable, larger environment base first, with the venue footprint and fixed upgrade anchors left clear. Place the selected building and its compatible modules on top; do not paint every site as one indivisible illustration.
 - Materials: natural timber, brick, painted metal, glass, stone, water and soft vegetation. Use restrained texture.
 - Light: daylight, evening and night are palette/light layers on the same art, not separate illustrations.
@@ -64,6 +66,7 @@ Primary request: [BUILDING OR UPGRADE], designed to attach at the specified fixe
 Scene/backdrop: transparent background only; no full environment.
 Composition: clear top-down 3/4 exterior silhouette; show only the module and its necessary attached ground edge.
 Constraints: no people, text, UI, watermark, interior cutaway or arbitrary alternate placement. Match the documented module footprint and palette.
+Scale: draw at the locked native tile scale. Do not shrink the module to fit a smaller imagined scene and do not draw oversized people as a scale reference; final placement is handled by the documented envelope and camera system.
 [MASTER PROMPT]
 ```
 

@@ -22,8 +22,9 @@ An asset does not require a unique animation merely because it is unique art. It
 | `water-wave` | Slight directional wave/foam loop | Coast and beach only. |
 | `water-entry` | Entry splash plus expanding ripple | All natural-water and pool entries. |
 | `steam-chimney` | Low chimney/roof steam plume | Operational sauna buildings. |
-| `steam-program` | Timed dense Gus steam, intensity and aroma accent variants | Program Sauna and outdoor Gus fields. |
+| `steam-program` | Timed dense Gus steam, intensity and aroma accent variants | Program Sauna and enclosed Outdoor Gus Saunas. |
 | `shower-water` | Falling water, floor splash and short runoff | Outdoor showers and rain-shower rows. |
+| `shower-cascade` | Brief heavy bucket-tip water sheet and stronger splash | Cold Cascade Bucket only; triggered, never ambient. |
 | `cold-surface` | Cold-basin surface/rim effect | Plunges and cold-water basins. |
 | `spa-steam-bubble` | Warm steam, bubbles and water-surface movement | Wild bath and all warm-spa variants. |
 | `fire-flicker` | Low contained flame and ember loop | Approved fire bowls/circles only. |
@@ -76,10 +77,10 @@ Every concrete row in `asset-registry-v0.1.md` belongs to one of these approved 
 | Reception shop, service hatch or shop window | Static counter/interior detail plus `door-hatch` during Host/guest transaction and warm evening light. |
 | Changing wing, pod or service volume | Static volume; doorway/pod transition only when used. No fake constant animation. |
 | Extra sauna room, sauna pod, hall or roof volume | Static silhouette change plus separate `steam-chimney` and door anchor. |
-| Program Sauna or outdoor Gus field | Timed `steam-program`, optional low light cue, guest program wait/reaction and outdoor Master sequence when applicable. |
+| Program Sauna or Outdoor Gus Sauna | Timed `steam-program`, optional low light cue, guest program wait/reaction and outdoor Master approach/entry sequence when applicable. |
 | Terrace, deck, shelter, wind wall, benches or rest platform | Static transform plus seating/recline anchors; location-appropriate water/wind ambience. |
 | Lounge chairs | Static chair set plus `lounge-recline-rise`; no separate environmental loop required. |
-| Outdoor shower or shower row | `shower-water` only during use, with a dedicated rinse anchor per visible bay. |
+| Outdoor shower or shower row | `shower-water` only during use, with a dedicated rinse anchor per visible bay. A Cold Cascade Bucket additionally needs one `cascade-rinse` guest action and `shower-cascade` trigger. |
 | Cold plunge, roof plunge, basin or water wall | `cold-surface` persistent loop and entry/exit splash on use; technical repair cue where eligible. |
 | Bridge, bathing steps, descent or floating deck entry | Location water loop plus route-specific `water-entry`, activity and exit/ladder anchors. |
 | Warm wild bath, sunken spa, rooftop spa or floating spa | `spa-steam-bubble`, entry/exit splash and seated water anchors; technical repair cue where eligible. |
@@ -97,7 +98,7 @@ Towels create a small, readable service activity without turning guests into lit
 1. A visit has an `equipment mode`: own towel, venue-rented towel, purchased towel or no towel-required path. It is chosen from visit context, shop use, recovery plan and convenience preference, never from age, gender, body, ethnicity, name or appearance.
 2. Venue towels normally go to an authored return basket near changing, recovery or exit fields. This is the normal `towel-return` outcome and does not create a messy scene.
 3. A small, capped number of context-driven visits may leave a used venue towel at a compatible bench, lounge chair or spa-side hook after a long, rushed or social lingering visit. This represents an unfinished service task, not a negative personality trait.
-4. A scheduled Service Host can collect/fold the visible towel prop using `host-towel-collect`. Without a Host, the prop stays only briefly and the venue's service/cleanliness presentation can become slightly strained if several authored anchors are occupied.
+4. A scheduled Service Host can collect/fold the visible towel prop using `staff-host-towel-collect`. Without a Host, the prop stays only briefly and the venue's service/cleanliness presentation can become slightly strained if several authored anchors are occupied.
 5. Guests who bring their own towel do not generate a return task. Bought retail towels do not become venue laundry.
 6. The system never scatters towels across paths, water, fire fields or arbitrary ground. Each recovery field has at most its authored towel-prop capacity.
 

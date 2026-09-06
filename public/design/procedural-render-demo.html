@@ -1,0 +1,898 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sauna Sim - Procedural Render Demo</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#14181a; color:#cfcabb; font:13px/1.55 ui-monospace, monospace; padding:16px; }
+  h1 { font:600 18px/1.3 Georgia, serif; margin:0 0 4px; color:#f0e6d2; }
+  p.sub { margin:0 0 12px; color:#87958e; max-width:78ch; }
+  .bar { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:10px; align-items:center; }
+  button { background:#232c2a; color:#cfcabb; border:1px solid #3a4a45; border-radius:6px; padding:6px 11px; font:600 12px ui-monospace,monospace; cursor:pointer; }
+  button.on { background:#e0b36a; color:#1d221f; border-color:#e0b36a; }
+  .wrap { display:inline-block; border:1px solid #3a4a45; border-radius:8px; overflow:auto; max-width:100%; background:#0b0e0f; }
+  canvas { display:block; image-rendering: pixelated; }
+  .legend { margin-top:12px; color:#78867f; max-width:88ch; }
+  .legend b { color:#c4b99f; font-weight:600; }
+</style>
+</head>
+<body>
+<h1>Procedural render demo — ingen sprites, alt tegnet i kode</h1>
+<p class="sub">Native 512 x 400 px (32 x 25 felter à 16 px). Ét lys fra øverst til venstre styrer alle højlys, skygger og kastede skygger. Gæsterne bruger den rigtige otte-fase gangcyklus med plantet fod; de vestlige retninger er spejlet, ikke tegnet.</p>
+
+<div class="bar">
+  <button data-zoom="1">1x</button><button data-zoom="2" class="on">2x</button><button data-zoom="3">3x</button>
+  <span style="width:10px"></span>
+  <button id="light" class="on">Dag</button>
+  <button id="grid">Felt-gitter</button>
+  <button id="slow">Slow motion</button>
+  <button id="flat">Uden lys</button>
+</div>
+
+<div class="wrap"><canvas id="stage" width="512" height="400"></canvas></div>
+
+<p class="legend">
+<b>Prøv «Uden lys»:</b> den slår lysmodellen fra og viser hvad der forsvinder — kastede skygger, ambient occlusion, højlys på lyssiden og varm/kold farvetemperatur. Det er hele forskellen mellem programmer-grafik og noget der ligner et sted.
+</p>
+
+<script>
+const NATIVE_W = 512, NATIVE_H = 400, TILE = 16;
+const cv = document.getElementById("stage");
+const ctx = cv.getContext("2d");
+ctx.imageSmoothingEnabled = false;
+
+/* ============================================================================
+   Materials are ramps, not single colours. Index 0 is the deepest shadow and the
+   last index is the lit edge. Lighting is then just an index shift, which is what
+   keeps every surface in the scene consistent with one light direction.
+   ========================================================================== */
+const R = {
+  brick:  ["#4e2a20", "#6d3a2b", "#8b4a35", "#a45a41", "#c07a5b", "#d69madeup"],
+  slate:  ["#1b2228", "#252f37", "#334049", "#43535f", "#5a6e7c"],
+  pave:   ["#5f5b51", "#797365", "#8f8879", "#a49d8d", "#bab2a1"],
+  timber: ["#3d2515", "#5c3a22", "#7b4e2f", "#9a663d", "#bb8555"],
+  water:  ["#0e3646", "#164a5e", "#1f6076", "#2b7d94", "#4098af", "#79c9d8"],
+  green:  ["#233a22", "#33512f", "#456b3e", "#5c8750", "#7aa668", "#9cc286"],
+  stone:  ["#4a4b45", "#63645c", "#7c7d74", "#95968b", "#adaea2"],
+  copper: ["#5f3a22", "#8a5734", "#b3764a", "#d29a63", "#eabf8b"],
+  asphalt:["#3a3a38", "#4a4a47", "#575754", "#646460", "#73736e"],
+};
+R.brick[5] = "#e0a07d";
+const INK = "#221914", INK2 = "#3a2b21", MORTAR = "#7d6a5c";
+const AMBER = "#f5c06a", GLOW = "#ffdfa8", CREAM = "#f2e8d5";
+
+/* Light from the top-left. Every raised volume lights its top and left edge and
+   darkens its bottom and right, then drops a cast shadow down-right. */
+const LIGHT = { dx: -1, dy: -1, shadowDx: 5, shadowDy: 4 };
+let LIT = true;   // toggled by the "Uden lys" button
+
+function hash(x, y, s = 0) {
+  let h = (x * 374761393 + y * 668265263 + s * 2147483647) ^ 0x5bf03635;
+  h = (h ^ (h >>> 13)) * 1274126177;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+/* Clustered noise. Per-pixel random reads as television static; patches read as material. */
+const patch = (x, y, seed, scale = 2) => hash(x >> scale, y >> scale, seed);
+
+let g = ctx;
+const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x | 0, y | 0, w | 0, h | 0); };
+const px = (x, y, c) => rect(x, y, 1, 1, c);
+const hline = (x, y, w, c) => rect(x, y, w, 1, c);
+const vline = (x, y, h, c) => rect(x, y, 1, h, c);
+function outline(x, y, w, h, c) { hline(x, y, w, c); hline(x, y + h - 1, w, c); vline(x, y, h, c); vline(x + w - 1, y, h, c); }
+const clampIdx = (i, ramp) => Math.max(0, Math.min(ramp.length - 1, i));
+
+/* A raised block: base fill from a ramp, lit top/left, shaded bottom/right, dark outline. */
+function volume(x, y, w, h, ramp, base = 2, seed = 5, scale = 2) {
+  for (let py = y; py < y + h; py++) for (let pxx = x; pxx < x + w; pxx++) {
+    const n = patch(pxx, py, seed, scale);
+    let i = base + (n > 0.82 ? 1 : n < 0.2 ? -1 : 0);
+    px(pxx, py, ramp[clampIdx(i, ramp)]);
+  }
+  if (LIT) {
+    hline(x, y, w, ramp[clampIdx(base + 2, ramp)]);
+    vline(x, y, h, ramp[clampIdx(base + 1, ramp)]);
+    hline(x, y + h - 1, w, ramp[clampIdx(base - 2, ramp)]);
+    vline(x + w - 1, y, h, ramp[clampIdx(base - 1, ramp)]);
+  }
+  outline(x - 1, y - 1, w + 2, h + 2, INK);
+}
+
+/* Cast shadow in two alpha steps: a core and a softer skirt. */
+function castShadow(gg, x, y, w, h, spread = 1) {
+  if (!LIT) return;
+  g = gg;
+  gg.globalAlpha = 0.30;
+  rect(x + LIGHT.shadowDx, y + LIGHT.shadowDy, w, h, "#16110c");
+  gg.globalAlpha = 0.16;
+  rect(x + LIGHT.shadowDx + spread, y + LIGHT.shadowDy + spread, w, h, "#16110c");
+  gg.globalAlpha = 1;
+}
+/* Ambient occlusion where an object meets the ground. */
+function contactAO(gg, x, y, w, strength = 0.32) {
+  if (!LIT) return;
+  g = gg; gg.globalAlpha = strength;
+  rect(x, y, w, 2, "#1a1410");
+  gg.globalAlpha = strength * 0.5;
+  rect(x - 1, y + 2, w + 2, 2, "#1a1410");
+  gg.globalAlpha = 1;
+}
+
+const world = document.createElement("canvas");
+world.width = NATIVE_W; world.height = NATIVE_H;
+/* Anything standing on the water has to be drawn after the animated water pass, so it lives in
+   its own buffer rather than in the static ground buffer. */
+const overWater = document.createElement("canvas");
+overWater.width = NATIVE_W; overWater.height = NATIVE_H;
+
+const LAYOUT = {
+  street:   { x:0,   y:0,   w:512, h:30 },
+  building: { x:16,  y:78,  w:232, h:196 },
+  annex:    { x:248, y:126, w:56,  h:148 },
+  terrace:  { x:320, y:130, w:154, h:88  },
+  shower:   { x:318, y:226, w:44,  h:70  },
+  plunge:   { x:376, y:230, w:98,  h:62  },
+  towelRail:{ x:284, y:284, w:28,  h:26  },
+  quayWall: { y:316, h:14 },
+  water:    { y:330, h:70  },
+  bridge:   { x:92,  y:314, w:70,  h:86  },
+};
+
+/* ---------------------------------------------------------------- ground --- */
+function drawStreet(gg) {
+  g = gg;
+  const { y, h } = LAYOUT.street;
+  for (let py = y; py < y + h; py++) for (let pxx = 0; pxx < NATIVE_W; pxx++) {
+    const n = patch(pxx, py, 3, 1), f = hash(pxx, py, 4);
+    let i = 2 + (n > 0.8 ? 1 : n < 0.22 ? -1 : 0);
+    if (f > 0.965) i -= 1;
+    px(pxx, py, R.asphalt[clampIdx(i, R.asphalt)]);
+  }
+  for (let x = 8; x < NATIVE_W; x += 30) rect(x, y + 12, 14, 2, "#8b8a80");
+  rect(0, y + h - 4, NATIVE_W, 4, R.stone[3]);
+  if (LIT) hline(0, y + h - 4, NATIVE_W, R.stone[4]);
+  hline(0, y + h, NATIVE_W, INK2);
+  if (LIT) { gg.globalAlpha = 0.22; rect(0, y + h + 1, NATIVE_W, 3, "#1a1410"); gg.globalAlpha = 1; }
+}
+
+function drawPaving(gg) {
+  g = gg;
+  const top = LAYOUT.street.y + LAYOUT.street.h + 1, bottom = LAYOUT.quayWall.y;
+  for (let py = top; py < bottom; py++) for (let pxx = 0; pxx < NATIVE_W; pxx++) {
+    // two noise octaves: broad tonal patches, then a little per-stone grain
+    const broad = hash(pxx >> 5, py >> 4, 9);
+    const grain = patch(pxx, py, 7, 1);
+    let i = 2 + (broad > 0.62 ? 1 : broad < 0.3 ? -1 : 0) + (grain > 0.88 ? 1 : grain < 0.13 ? -1 : 0);
+    px(pxx, py, R.pave[clampIdx(i, R.pave)]);
+  }
+  // staggered slabs, joint darkness varies so the grid does not read as a net
+  for (let py = top; py < bottom; py += 8) {
+    for (let x = 0; x < NATIVE_W; x++) px(x, py, hash(x >> 3, py, 13) > 0.6 ? R.pave[0] : R.pave[1]);
+    const off = ((py / 8) | 0) % 2 ? 8 : 0;
+    for (let x = off; x < NATIVE_W; x += 16) {
+      vline(x, py, 8, hash(x, py, 17) > 0.5 ? R.pave[0] : R.pave[1]);
+      if (LIT) vline(x + 1, py + 1, 7, R.pave[3]);      // lit edge of each slab
+    }
+  }
+  // worn lighter path from the door out to the promenade, and a damp patch by the shower
+  g = gg; gg.globalAlpha = 0.22;
+  rect(112, 274, 34, 44, "#cdc5b2"); rect(112, 296, 220, 22, "#cdc5b2");
+  gg.globalAlpha = 0.28;
+  rect(LAYOUT.shower.x - 6, LAYOUT.shower.y + 46, LAYOUT.shower.w + 12, 30, "#4e5b55");
+  gg.globalAlpha = 1;
+  // moss creeping out of the joints along the wall base
+  for (let i = 0; i < 320; i++) {
+    const mx = (hash(i, 1, 19) * NATIVE_W) | 0, my = 280 + ((hash(i, 2, 23) * 34) | 0);
+    if (hash(mx, my, 29) > 0.72) px(mx, my, R.green[clampIdx(1 + ((hash(i, 3, 31) * 2) | 0), R.green)]);
+  }
+}
+
+function drawQuayAndWater(gg) {
+  g = gg;
+  const { y: wy, h: wh } = LAYOUT.quayWall;
+  for (let py = wy; py < wy + wh; py++) for (let pxx = 0; pxx < NATIVE_W; pxx++) {
+    const n = patch(pxx, py, 11, 2);
+    let i = 2 + (n > 0.74 ? 1 : n < 0.28 ? -1 : 0);
+    if (LIT && py === wy) i += 2;
+    if (LIT && py > wy + wh - 4) i -= 1;
+    px(pxx, py, R.stone[clampIdx(i, R.stone)]);
+  }
+  for (let x = 0; x < NATIVE_W; x += 24) {
+    vline(x, wy, wh, R.stone[0]);
+    if (LIT) vline(x + 1, wy + 1, wh - 2, R.stone[4]);
+  }
+  hline(0, wy + wh - 1, NATIVE_W, INK);
+  rect(0, LAYOUT.water.y, NATIVE_W, LAYOUT.water.h, R.water[3]);
+}
+
+/* ------------------------------------------------------------- building --- */
+function brickWall(gg, x, y, w, h, seed = 23) {
+  g = gg;
+  const BW = 8, BH = 4;
+  for (let py = y; py < y + h; py++) {
+    const row = ((py - y) / BH) | 0, off = row % 2 ? BW / 2 : 0;
+    const inRowMortar = ((py - y) % BH) === 0;
+    const topOfBrick = ((py - y) % BH) === 1;
+    for (let pxx = x; pxx < x + w; pxx++) {
+      const local = (pxx - x) + off;
+      if (inRowMortar || local % BW === 0) { px(pxx, py, MORTAR); continue; }
+      const col = (local / BW) | 0;
+      const n = hash(col, row, seed);
+      let i = 2 + (n > 0.84 ? 2 : n > 0.66 ? 1 : n < 0.14 ? -1 : 0);
+      if (LIT && topOfBrick) i += 1;                       // each brick catches the light on top
+      if (LIT && local % BW === 1) i += 1;                 // and on its left edge
+      px(pxx, py, R.brick[clampIdx(i, R.brick)]);
+    }
+  }
+}
+
+function slateRoof(gg, x, y, w, h, seed = 37) {
+  g = gg;
+  const SH = 5, SW = 13;
+  for (let py = y; py < y + h; py++) {
+    const row = ((py - y) / SH) | 0, off = row % 2 ? SW / 2 : 0;
+    const topOfRow = ((py - y) % SH) === 1;
+    for (let pxx = x; pxx < x + w; pxx++) {
+      const local = (pxx - x) + off, col = (local / SW) | 0;
+      const n = hash(col, row, seed);
+      // a roof reads lighter near the ridge and darker at the eave
+      const depth = (py - y) / h;
+      let i = 2 + (n > 0.8 ? 1 : n < 0.24 ? -1 : 0) + (LIT ? (depth < 0.34 ? 1 : depth > 0.76 ? -1 : 0) : 0);
+      if (LIT && topOfRow) i += 1;
+      px(pxx, py, R.slate[clampIdx(i, R.slate)]);
+      if (local % SW === 0) px(pxx, py, R.slate[0]);
+    }
+    if ((py - y) % SH === 0) hline(x, py, w, R.slate[0]);
+  }
+}
+
+function window4(gg, wx, wy, ww, wh) {
+  g = gg;
+  rect(wx, wy, ww, wh, "#2f4650");
+  for (let py = wy; py < wy + wh; py++) for (let pxx = wx; pxx < wx + ww; pxx++) {
+    const d = (pxx - wx) / ww + (py - wy) / wh;
+    px(pxx, py, d < 0.55 ? "#6d919c" : d < 1.1 ? "#557781" : "#3c5a64");
+  }
+  if (LIT) { rect(wx + 1, wy + 1, ww - 2, 2, "#1f333b"); vline(wx + 1, wy + 1, wh - 2, "#1f333b"); }   // recess shadow
+  rect(wx + ((ww / 2) | 0), wy, 1, wh, "#4a3324");
+  hline(wx, wy + ((wh / 2) | 0), ww, "#4a3324");
+  outline(wx - 1, wy - 1, ww + 2, wh + 2, INK);
+  rect(wx - 2, wy + wh + 1, ww + 4, 3, R.stone[3]);                                   // sill
+  if (LIT) { hline(wx - 2, wy + wh + 1, ww + 4, R.stone[4]); gg.globalAlpha = 0.3; rect(wx - 1, wy + wh + 4, ww + 4, 3, "#1a1410"); gg.globalAlpha = 1; }
+  outline(wx - 2, wy + wh + 1, ww + 4, 3, INK);
+}
+
+function drawBuilding(gg) {
+  g = gg;
+  const { x, y, w } = LAYOUT.building;
+  const roofH = 74, wallY = y + roofH, wallH = 104, groundY = wallY + wallH;
+
+  castShadow(gg, x, y + 40, w + 6, groundY - y - 36, 2);
+
+  slateRoof(gg, x, y, w, roofH);
+  // ridge, verge boards and eave
+  rect(x, y, w, 2, R.slate[4]); hline(x, y - 1, w, INK);
+  rect(x, y, 3, roofH, R.slate[1]); rect(x + w - 3, y, 3, roofH, R.slate[0]);
+  rect(x - 2, wallY - 5, w + 4, 5, R.slate[1]);
+  if (LIT) hline(x - 2, wallY - 5, w + 4, R.slate[3]);
+  outline(x - 2, wallY - 5, w + 4, 5, INK);
+  // roof lights
+  for (const sx of [x + 62, x + 150]) {
+    rect(sx, y + 16, 26, 16, "#5b7b86");
+    if (LIT) { rect(sx + 1, y + 17, 24, 5, "#87abb4"); }
+    outline(sx - 1, y + 15, 28, 18, INK);
+    rect(sx - 1, y + 33, 28, 2, R.slate[0]);
+  }
+  // roof vent
+  rect(x + 194, y + 10, 12, 10, R.stone[2]); rect(x + 193, y + 8, 14, 3, R.stone[3]);
+  outline(x + 193, y + 8, 14, 12, INK);
+
+  brickWall(gg, x, wallY, w, wallH);
+  // darker weathered plinth and a lit top course under the eave
+  g = gg; gg.globalAlpha = 0.34; rect(x, groundY - 12, w, 12, "#241610"); gg.globalAlpha = 1;
+  if (LIT) { gg.globalAlpha = 0.2; rect(x, wallY, w, 4, "#ffd9b0"); gg.globalAlpha = 1; }
+  gg.globalAlpha = 0.25; rect(x, wallY, w, 6, "#1a1008"); gg.globalAlpha = 1;   // eave shadow on the wall
+  outline(x - 1, wallY - 1, w + 2, wallH + 2, INK);
+
+  window4(gg, x + 14, wallY + 22, 24, 26);
+  window4(gg, x + 48, wallY + 22, 24, 26);
+  window4(gg, x + 196, wallY + 22, 22, 26);
+
+  // lit entrance, recessed
+  const dx = x + 90, dy = wallY + 44, dw = 28, dh = 60;
+  rect(dx - 4, dy - 6, dw + 8, dh + 6, R.timber[1]);
+  if (LIT) { hline(dx - 4, dy - 6, dw + 8, R.timber[3]); vline(dx - 4, dy - 6, dh + 6, R.timber[2]); }
+  rect(dx, dy, dw, dh, "#3a2317");
+  for (let py = dy + 2; py < dy + dh - 6; py++) {
+    const f = (py - dy) / dh;
+    hline(dx + 2, py, dw - 4, f < 0.18 ? GLOW : f < 0.6 ? AMBER : "#d69f4e");
+  }
+  rect(dx + ((dw / 2) | 0), dy, 1, dh, "#54331f");
+  px(dx + dw - 7, dy + 32, CREAM);
+  outline(dx - 4, dy - 6, dw + 8, dh + 6, INK);
+  rect(dx - 6, dy + dh, dw + 12, 4, R.stone[3]);                                  // step
+  if (LIT) hline(dx - 6, dy + dh, dw + 12, R.stone[4]);
+  outline(dx - 6, dy + dh, dw + 12, 4, INK);
+  // sign
+  rect(dx - 10, dy - 20, dw + 20, 11, R.timber[1]);
+  if (LIT) hline(dx - 10, dy - 20, dw + 20, R.timber[3]);
+  rect(dx - 8, dy - 18, dw + 16, 7, R.timber[2]);
+  outline(dx - 10, dy - 20, dw + 20, 11, INK);
+  // wall lamps
+  for (const lx of [dx - 18, dx + dw + 14]) {
+    rect(lx - 3, dy - 12, 7, 7, "#3b4440"); rect(lx - 2, dy - 11, 5, 5, AMBER);
+    outline(lx - 3, dy - 12, 7, 7, INK);
+    if (LIT) { gg.globalAlpha = 0.18; rect(lx - 8, dy - 8, 17, 22, GLOW); gg.globalAlpha = 1; }
+  }
+
+  // loading port with a roller shutter
+  const lx = x + 140, ly = wallY + 34, lw = 50, lh = 70;
+  rect(lx - 3, ly - 3, lw + 6, lh + 3, R.stone[1]);
+  rect(lx, ly, lw, lh, "#2b3134");
+  for (let i = 2; i < lh; i += 3) hline(lx, ly + i, lw, i % 6 ? "#3f474b" : "#353c40");
+  gg.globalAlpha = 0.4; rect(lx, ly, lw, 8, "#12161a"); gg.globalAlpha = 1;
+  outline(lx - 3, ly - 3, lw + 6, lh + 3, INK);
+  rect(lx - 4, ly + lh, lw + 8, 4, R.stone[2]);
+  outline(lx - 4, ly + lh, lw + 8, 4, INK);
+
+  // drainpipe on the shaded side
+  rect(x + w - 10, wallY, 5, wallH, R.stone[1]);
+  if (LIT) vline(x + w - 10, wallY, wallH, R.stone[3]);
+  for (let py = wallY + 12; py < groundY; py += 34) rect(x + w - 12, py, 9, 3, R.stone[2]);
+  outline(x + w - 10, wallY, 5, wallH, INK);
+
+  // chimney with its own cast shadow across the roof
+  const cx = x + 34, cyTop = y - 34;
+  if (LIT) { gg.globalAlpha = 0.28; rect(cx + 16, cyTop + 6, 12, roofH + 30, "#131922"); gg.globalAlpha = 1; }
+  brickWall(gg, cx, cyTop, 18, y + 14 - cyTop, 41);
+  rect(cx - 3, cyTop, 24, 5, R.stone[3]);
+  if (LIT) hline(cx - 3, cyTop, 24, R.stone[4]);
+  outline(cx - 3, cyTop, 24, 5, INK);
+  outline(cx - 1, cyTop, 20, y + 14 - cyTop, INK);
+
+  contactAO(gg, x - 2, groundY, w + 4, 0.38);
+}
+
+function drawAnnex(gg) {
+  g = gg;
+  const { x, y, w } = LAYOUT.annex;
+  const roofH = 40, wallY = y + roofH, wallH = 108, groundY = wallY + wallH;
+  castShadow(gg, x, y + 20, w + 4, groundY - y - 16, 2);
+  slateRoof(gg, x, y, w, roofH, 43);
+  rect(x, y, w, 2, R.slate[4]);
+  rect(x - 2, wallY - 4, w + 4, 4, R.slate[1]);
+  outline(x - 2, wallY - 4, w + 4, 4, INK);
+  brickWall(gg, x, wallY, w, wallH, 47);
+  g = gg; gg.globalAlpha = 0.3; rect(x, groundY - 10, w, 10, "#241610"); gg.globalAlpha = 1;
+  outline(x - 1, wallY - 1, w + 2, wallH + 2, INK);
+  // shop hatch with an awning
+  const hx = x + 10, hy = wallY + 30;
+  rect(hx, hy, 36, 30, "#2f3f44");
+  rect(hx + 1, hy + 1, 34, 12, "#5b7f88");
+  outline(hx - 1, hy - 1, 38, 32, INK);
+  rect(hx - 3, hy - 8, 42, 7, "#8c4a3e");
+  for (let i = 0; i < 42; i += 6) rect(hx - 3 + i, hy - 8, 3, 7, "#a85c4a");
+  if (LIT) hline(hx - 3, hy - 8, 42, "#c4735c");
+  outline(hx - 3, hy - 8, 42, 7, INK);
+  if (LIT) { gg.globalAlpha = 0.32; rect(hx - 2, hy - 1, 40, 5, "#1a1008"); gg.globalAlpha = 1; }
+  contactAO(gg, x - 1, groundY, w + 2, 0.36);
+}
+
+/* ---------------------------------------------------------------- props --- */
+function plankDeck(gg, x, y, w, h, seed) {
+  g = gg;
+  for (let py = y; py < y + h; py++) for (let pxx = x; pxx < x + w; pxx++) {
+    const n = hash(pxx >> 1, py >> 2, seed);
+    let i = 2 + (n > 0.82 ? 1 : n < 0.22 ? -1 : 0);
+    px(pxx, py, R.timber[clampIdx(i, R.timber)]);
+  }
+  for (let py = y; py < y + h; py += 4) {
+    hline(x, py, w, R.timber[0]);
+    if (LIT) hline(x, py + 1, w, R.timber[3]);
+  }
+  for (let sx = x + 18; sx < x + w; sx += 26) vline(sx, y, h, R.timber[1]);
+}
+
+function drawTerrace(gg) {
+  const { x, y, w, h } = LAYOUT.terrace;
+  castShadow(gg, x, y, w, h, 1);
+  plankDeck(gg, x, y, w, h, 31);
+  g = gg; outline(x - 1, y - 1, w + 2, h + 2, INK);
+  if (LIT) { hline(x, y, w, R.timber[4]); vline(x, y, h, R.timber[3]); }
+  contactAO(gg, x - 1, y + h, w + 2, 0.28);
+
+  const lounger = (lx, ly) => {
+    castShadow(gg, lx, ly, 16, 34, 1);
+    g = gg;
+    rect(lx, ly, 16, 34, R.timber[2]);
+    rect(lx + 1, ly + 1, 14, 32, "#e6ddc8");
+    if (LIT) { hline(lx + 1, ly + 1, 14, "#fbf5e6"); vline(lx + 1, ly + 1, 32, "#f2ead8"); }
+    rect(lx + 1, ly + 1, 14, 10, "#d6cbb2");
+    rect(lx + 3, ly + 16, 10, 6, "#b8604d");                       // folded towel
+    if (LIT) hline(lx + 3, ly + 16, 10, "#d17a63");
+    outline(lx + 3, ly + 16, 10, 6, "#7d3b30");
+    outline(lx, ly, 16, 34, INK);
+    rect(lx + 2, ly + 34, 2, 3, R.timber[1]); rect(lx + 12, ly + 34, 2, 3, R.timber[1]);
+    contactAO(gg, lx, ly + 36, 16, 0.3);
+  };
+  lounger(x + 16, y + 34); lounger(x + 44, y + 34);
+
+  // parasol, closed, leaning
+  g = gg;
+  castShadow(gg, x + 96, y + 20, 6, 52, 1);
+  rect(x + 98, y + 20, 3, 52, R.timber[1]);
+  if (LIT) vline(x + 98, y + 20, 52, R.timber[3]);
+  rect(x + 95, y + 12, 9, 12, "#5d7f5a");
+  if (LIT) { hline(x + 95, y + 12, 9, "#7ea377"); vline(x + 95, y + 12, 12, "#6c9066"); }
+  outline(x + 95, y + 12, 9, 12, INK);
+  outline(x + 98, y + 20, 3, 52, INK);
+
+  // planter box on the deck edge
+  const bx = x + w - 30, by = y + 8;
+  castShadow(gg, bx, by, 22, 16, 1);
+  volume(bx, by, 22, 16, R.timber, 1, 53, 1);
+  for (let i = 0; i < 90; i++) {
+    const rx = bx + 1 + ((hash(i, bx, 61) * 20) | 0), ry = by - 8 + ((hash(i, by, 67) * 16) | 0);
+    const n = hash(rx, ry, 71);
+    px(rx, ry, R.green[clampIdx(2 + (n > 0.72 ? 2 : n > 0.4 ? 1 : 0), R.green)]);
+  }
+}
+
+function drawShower(gg) {
+  const { x, y, w, h } = LAYOUT.shower;
+  g = gg;
+  // wet stone slab
+  for (let py = y + h - 18; py < y + h; py++) for (let pxx = x; pxx < x + w; pxx++) {
+    const n = patch(pxx, py, 73, 1);
+    px(pxx, py, R.stone[clampIdx(1 + (n > 0.76 ? 1 : n < 0.3 ? -1 : 0), R.stone)]);
+  }
+  if (LIT) hline(x, y + h - 18, w, R.stone[4]);
+  outline(x - 1, y + h - 19, w + 2, 20, INK);
+  const cx = x + (w >> 1) - 1;
+  castShadow(gg, cx - 10, y + 4, 22, h - 22, 1);
+  g = gg;
+  rect(cx, y + 8, 4, h - 26, R.copper[2]);
+  if (LIT) { vline(cx, y + 8, h - 26, R.copper[4]); vline(cx + 1, y + 8, h - 26, R.copper[3]); }
+  outline(cx - 1, y + 8, 6, h - 26, INK);
+  rect(cx - 11, y + 4, 26, 5, R.copper[2]);
+  if (LIT) hline(cx - 11, y + 4, 26, R.copper[4]);
+  outline(cx - 11, y + 4, 26, 5, INK);
+  rect(cx - 5, y + h - 34, 12, 4, R.copper[3]);
+  outline(cx - 5, y + h - 34, 12, 4, INK);
+}
+
+function drawTowelRail(gg) {
+  const { x, y, w, h } = LAYOUT.towelRail;
+  castShadow(gg, x, y, w, h, 1);
+  g = gg;
+  rect(x, y, 3, h, R.timber[1]); rect(x + w - 3, y, 3, h, R.timber[1]);
+  rect(x, y, w, 3, R.timber[2]);
+  if (LIT) { hline(x, y, w, R.timber[4]); vline(x, y, h, R.timber[3]); }
+  outline(x, y, w, 3, INK);
+  outline(x, y, 3, h, INK); outline(x + w - 3, y, 3, h, INK);
+  for (let i = 0; i < 2; i++) {
+    const tx = x + 4 + i * 11;
+    rect(tx, y + 3, 8, 18, i ? "#dfd6c0" : "#c8b9d0");
+    if (LIT) { hline(tx, y + 3, 8, "#f7f0e0"); vline(tx, y + 3, 18, "#eae2d0"); }
+    hline(tx, y + 20, 8, "#a89d8a");
+    outline(tx, y + 3, 8, 18, INK2);
+  }
+  contactAO(gg, x - 1, y + h, w + 2, 0.26);
+}
+
+function drawPlunge(gg) {
+  const { x, y, w, h } = LAYOUT.plunge;
+  castShadow(gg, x, y, w, h, 2);
+  g = gg;
+  for (let py = y; py < y + h; py++) for (let pxx = x; pxx < x + w; pxx++) {
+    const n = patch(pxx, py, 79, 2);
+    let i = 2 + (n > 0.74 ? 1 : n < 0.3 ? -1 : 0);
+    if (LIT && py < y + 3) i += 2;
+    if (LIT && py > y + h - 4) i -= 1;
+    px(pxx, py, R.stone[clampIdx(i, R.stone)]);
+  }
+  outline(x - 1, y - 1, w + 2, h + 2, INK);
+  const ix = x + 8, iy = y + 8, iw = w - 16, ih = h - 16;
+  rect(ix, iy, iw, ih, R.water[1]);
+  g = gg; gg.globalAlpha = 0.5; rect(ix, iy, iw, 5, "#07242f"); gg.globalAlpha = 1;   // inner wall shadow
+  outline(ix - 1, iy - 1, iw + 2, ih + 2, INK);
+  // step and grab rail
+  rect(x + w - 30, y - 6, 18, 9, R.stone[3]);
+  if (LIT) hline(x + w - 30, y - 6, 18, R.stone[4]);
+  outline(x + w - 30, y - 6, 18, 9, INK);
+  rect(x + 6, y - 14, 3, 18, R.copper[2]); rect(x + 6, y - 14, 20, 3, R.copper[2]);
+  rect(x + 23, y - 14, 3, 18, R.copper[2]);
+  if (LIT) { hline(x + 6, y - 14, 20, R.copper[4]); }
+  outline(x + 6, y - 14, 3, 18, INK); outline(x + 23, y - 14, 3, 18, INK); outline(x + 6, y - 14, 20, 3, INK);
+  contactAO(gg, x - 1, y + h, w + 2, 0.3);
+}
+
+function drawBridge(gg) {
+  const { x, y, w, h } = LAYOUT.bridge;
+  g = gg; gg.globalAlpha = 0.3; rect(x + 4, y + 6, w, h, "#0a2b38"); gg.globalAlpha = 1;
+  plankDeck(gg, x, y, w, h, 59);
+  g = gg; outline(x - 1, y - 1, w + 2, h + 2, INK);
+  for (let py = y + 8; py < y + h - 4; py += 16) {
+    rect(x - 4, py, 4, 12, R.timber[1]); rect(x + w, py, 4, 12, R.timber[1]);
+    if (LIT) { hline(x - 4, py, 4, R.timber[3]); hline(x + w, py, 4, R.timber[3]); }
+    outline(x - 4, py, 4, 12, INK); outline(x + w, py, 4, 12, INK);
+  }
+  rect(x - 4, y + 4, 4, h - 10, R.timber[2]); rect(x + w, y + 4, 4, h - 10, R.timber[2]);
+  if (LIT) { vline(x - 4, y + 4, h - 10, R.timber[4]); vline(x + w, y + 4, h - 10, R.timber[4]); }
+}
+
+function bush(gg, cx, cy, r, seed) {
+  g = gg;
+  castShadow(gg, cx - r, cy - r + 2, r * 2, r * 2 - 2, 1);
+  for (let py = -r; py <= r; py++) for (let pxx = -r; pxx <= r; pxx++) {
+    const d = Math.hypot(pxx, py * 1.15);
+    if (d > r - hash(pxx, py, seed) * 1.6) continue;
+    const lit = (-pxx - py) / (r * 2) + 0.5;
+    const n = hash(pxx >> 1, py >> 1, seed + 1);
+    let i = 1 + Math.round(lit * 3) + (n > 0.78 ? 1 : n < 0.2 ? -1 : 0);
+    px(cx + pxx, cy + py, R.green[clampIdx(LIT ? i : 3, R.green)]);
+  }
+}
+
+function drawGreenery(gg) {
+  g = gg;
+  const beds = [[6, 276, 92, 22], [484, 138, 24, 150]];
+  for (const [bx, by, bw, bh] of beds) {
+    castShadow(gg, bx, by, bw, bh, 1);
+    g = gg;
+    rect(bx, by, bw, bh, "#5c4c39");
+    if (LIT) hline(bx, by, bw, "#71604a");
+    outline(bx, by, bw, bh, INK2);
+    for (let i = 0; i < bw * bh * 0.4; i++) {
+      const rx = bx + 1 + ((hash(i, bx, 61) * (bw - 2)) | 0);
+      const ry = by + 1 + ((hash(i, by + i, 67) * (bh - 2)) | 0);
+      const n = hash(rx, ry, 71);
+      px(rx, ry, R.green[clampIdx(2 + (n > 0.7 ? 2 : n > 0.38 ? 1 : 0), R.green)]);
+    }
+  }
+  bush(gg, 26, 268, 11, 101); bush(gg, 52, 272, 9, 107); bush(gg, 78, 266, 12, 109);
+  bush(gg, 494, 168, 12, 113); bush(gg, 490, 206, 11, 127); bush(gg, 496, 246, 12, 131);
+}
+
+const LAMPS = [[176, 306], [300, 306], [420, 306]];
+
+function drawPromenade(gg) {
+  g = gg;
+  // bollards
+  for (let x = 22; x < NATIVE_W; x += 46) {
+    castShadow(gg, x, 300, 6, 14, 1);
+    g = gg;
+    rect(x, 300, 6, 14, R.stone[2]);
+    if (LIT) { vline(x, 300, 14, R.stone[4]); hline(x, 300, 6, R.stone[4]); vline(x + 5, 300, 14, R.stone[1]); }
+    rect(x, 300, 6, 2, R.stone[3]);
+    outline(x, 300, 6, 14, INK);
+    contactAO(gg, x - 1, 314, 8, 0.3);
+  }
+  // lamp posts
+  for (const [lx, ly] of LAMPS) {
+    if (LIT) { gg.globalAlpha = 0.3; rect(lx + 4, ly - 2, 26, 6, "#16110c"); gg.globalAlpha = 1; }
+    g = gg;
+    rect(lx - 4, ly - 3, 9, 4, R.stone[1]);
+    outline(lx - 4, ly - 3, 9, 4, INK);
+    rect(lx - 1, ly - 34, 3, 32, "#3b4642");
+    if (LIT) vline(lx - 1, ly - 34, 32, "#586661");
+    outline(lx - 1, ly - 34, 3, 32, INK);
+    rect(lx - 5, ly - 42, 11, 9, "#3b4642");
+    rect(lx - 3, ly - 40, 7, 6, AMBER);
+    if (LIT) hline(lx - 3, ly - 40, 7, GLOW);
+    rect(lx - 6, ly - 44, 13, 3, "#2e3835");
+    outline(lx - 5, ly - 42, 11, 9, INK);
+    outline(lx - 6, ly - 44, 13, 3, INK);
+  }
+  // bench facing the water
+  const bx = 210, by = 292;
+  castShadow(gg, bx, by - 10, 46, 26, 1);
+  g = gg;
+  rect(bx, by, 46, 9, R.timber[2]);
+  if (LIT) hline(bx, by, 46, R.timber[4]);
+  for (let i = 0; i < 46; i += 5) vline(bx + i, by, 9, R.timber[1]);
+  rect(bx, by - 10, 46, 8, R.timber[3]);
+  if (LIT) hline(bx, by - 10, 46, R.timber[4]);
+  for (let i = 0; i < 46; i += 5) vline(bx + i, by - 10, 8, R.timber[1]);
+  outline(bx - 1, by - 11, 48, 21, INK);
+  rect(bx + 3, by + 9, 3, 4, "#3b4642"); rect(bx + 40, by + 9, 3, 4, "#3b4642");
+  contactAO(gg, bx, by + 13, 46, 0.3);
+
+  // crates and a barrel by the loading port
+  const crate = (cx, cy, s) => {
+    castShadow(gg, cx, cy, s, s, 1);
+    g = gg;
+    volume(cx, cy, s, s, R.timber, 2, 137, 1);
+    hline(cx + 1, cy + ((s / 2) | 0), s - 2, R.timber[1]);
+    vline(cx + ((s / 2) | 0), cy + 1, s - 2, R.timber[1]);
+    contactAO(gg, cx, cy + s, s, 0.28);
+  };
+  crate(184, 286, 18); crate(204, 290, 14); crate(186, 272, 14);
+  const barrel = (cx, cy) => {
+    castShadow(gg, cx, cy, 14, 20, 1);
+    g = gg;
+    for (let py = cy; py < cy + 20; py++) for (let pxx = cx; pxx < cx + 14; pxx++) {
+      const lit = 1 - Math.abs((pxx - cx) - 4) / 10;
+      px(pxx, py, R.timber[clampIdx(LIT ? 1 + Math.round(lit * 3) : 3, R.timber)]);
+    }
+    rect(cx, cy + 4, 14, 2, "#4b4a44"); rect(cx, cy + 14, 14, 2, "#4b4a44");
+    rect(cx, cy, 14, 3, R.timber[LIT ? 4 : 3]);
+    outline(cx - 1, cy - 1, 16, 22, INK);
+    contactAO(gg, cx - 1, cy + 20, 16, 0.3);
+  };
+  barrel(228, 282); barrel(244, 288);
+}
+
+function drawDucks(gg, t) {
+  g = gg;
+  const ducks = [[300, 352, 0.5], [366, 372, -0.34]];
+  for (const [dx0, dy0, spd] of ducks) {
+    const x = dx0 + Math.sin(t * spd * 0.6) * 26, y = dy0 + Math.sin(t * 0.9 + dx0) * 1.2;
+    g = gg; gg.globalAlpha = 0.3; rect(x - 3, y + 4, 9, 2, "#0b2f3d"); gg.globalAlpha = 1;
+    rect(x - 3, y, 8, 4, "#3f3a33");
+    if (LIT) hline(x - 3, y, 8, "#5d564b");
+    rect(x + (spd > 0 ? 4 : -4), y - 3, 3, 4, "#3f3a33");
+    px(x + (spd > 0 ? 6 : -4), y - 2, "#c9a24a");
+    outline(x - 4, y - 1, 10, 6, "#101d24");
+    for (let i = 0; i < 3; i++) {                      // wake
+      const w = 3 + i * 4;
+      gg.globalAlpha = 0.35 - i * 0.1;
+      hline(x - w / 2, y + 5 + i * 2, w, R.water[5]);
+      gg.globalAlpha = 1;
+    }
+  }
+}
+
+function buildWorld() {
+  const wg = world.getContext("2d");
+  wg.imageSmoothingEnabled = false;
+  wg.clearRect(0, 0, NATIVE_W, NATIVE_H);
+  drawStreet(wg); drawPaving(wg); drawQuayAndWater(wg);
+  drawGreenery(wg); drawTerrace(wg); drawShower(wg); drawTowelRail(wg); drawPlunge(wg);
+  drawPromenade(wg); drawAnnex(wg); drawBuilding(wg);
+  const og = overWater.getContext("2d");
+  og.imageSmoothingEnabled = false;
+  og.clearRect(0, 0, NATIVE_W, NATIVE_H);
+  drawBridge(og);
+  g = ctx;
+}
+buildWorld();
+
+/* ------------------------------------------------------------ characters --- */
+const PHASES = [
+  { a: 3, b: -3, dy: 0 }, { a: 3, b: -3, dy: 1 }, { a: 1, b: 0, dy: 0 }, { a: -1, b: 3, dy: -1 },
+];
+const phaseAt = (p) => (p < 4 ? PHASES[p] : { a: PHASES[p - 4].b, b: PHASES[p - 4].a, dy: PHASES[p - 4].dy });
+
+function drawGuest(gg, ox, oy, bearing, phase, mirror, tone) {
+  g = gg;
+  // contact shadow first, outside the mirror transform
+  if (LIT) { gg.globalAlpha = 0.3; rect(ox - 5, oy - 2, 11, 3, "#1a1410"); gg.globalAlpha = 0.16; rect(ox - 3 + 4, oy - 4, 9, 4, "#1a1410"); gg.globalAlpha = 1; }
+  const ph = phaseAt(phase);
+  const side = bearing === "e", diag = bearing === "se" || bearing === "ne", back = bearing === "n" || bearing === "ne";
+  const S = tone.skin, Sd = tone.skinLo, Sl = tone.skinHi, T = tone.towel, Td = tone.towelLo, Tl = tone.towelHi, H = tone.hair, Hl = tone.hairHi;
+
+  gg.save();
+  gg.translate(ox | 0, oy | 0);
+  if (mirror) gg.scale(-1, 1);
+  const by = -28 + ph.dy;
+
+  const legY = by + 21, legH = 7;
+  const legs = side
+    ? [[-1 + ph.b, legY, 3, legH, Sd], [-1 + ph.a, legY, 3, legH, S]]
+    : [[-4 + (ph.b >> 1), legY, 3, legH, Sd], [1 + (ph.a >> 1), legY, 3, legH, S]];
+  for (const [lx, ly, lw, lh, c] of legs) {
+    rect(lx, ly, lw, lh, c);
+    if (LIT) vline(lx, ly, lh, c === S ? Sl : S);
+    px(lx, ly + lh - 1, Sd); px(lx + lw - 1, ly + lh - 1, Sd);
+    outline(lx - 1, ly - 1, lw + 2, lh + 2, INK);
+  }
+
+  rect(-4, by + 7, 9, 8, S);                                   // chest/shoulders
+  if (LIT) { hline(-4, by + 7, 9, Sl); vline(-4, by + 7, 8, Sl); vline(4, by + 7, 8, Sd); }
+  rect(-5, by + 13, 11, 9, T);                                 // towel
+  if (LIT) { hline(-5, by + 13, 11, Tl); vline(-5, by + 13, 9, Tl); vline(5, by + 13, 9, Td); }
+  hline(-5, by + 21, 11, Td);
+  if (!back) { px(-1, by + 17, Td); px(-1, by + 18, Td); }
+  outline(-6, by + 6, 13, 17, INK);
+
+  const swing = side ? 0 : (ph.a > 0 ? 1 : -1);
+  const arm = (ax, ay, c) => { rect(ax, ay, 2, 9, c); if (LIT) vline(ax, ay, 9, c === S ? Sl : S); outline(ax - 1, ay - 1, 4, 11, INK); };
+  arm(-8, by + 8 + swing, S); arm(6, by + 8 - swing, Sd);
+
+  rect(-3, by + 1, 7, 8, S);                                   // head
+  if (LIT) { vline(-3, by + 1, 8, Sl); vline(3, by + 1, 8, Sd); }
+  rect(-4, by, 9, 4, H);                                       // hair
+  if (LIT) hline(-4, by, 9, Hl);
+  if (side) { rect(-4, by, 5, 7, H); if (LIT) vline(-4, by, 7, Hl); }
+  if (back) { rect(-4, by, 9, 8, H); if (LIT) { hline(-4, by, 9, Hl); vline(-4, by, 8, Hl); } }
+  if (!back) { px(side ? 1 : -1, by + 5, INK); if (!side && !diag) px(2, by + 5, INK); }
+  outline(-5, by - 1, 11, 11, INK);
+  gg.restore();
+}
+
+const TONES = [
+  { skin:"#d99e70", skinLo:"#ab7649", skinHi:"#efbd93", towel:"#efe8d9", towelLo:"#c9c0ad", towelHi:"#fdf8ec", hair:"#39281c", hairHi:"#5b4230" },
+  { skin:"#a06a3b", skinLo:"#754a26", skinHi:"#c08a55", towel:"#e2d7bf", towelLo:"#bbb096", towelHi:"#f5ecd8", hair:"#20160f", hairHi:"#3d2b1d" },
+  { skin:"#f0c69c", skinLo:"#c1976f", skinHi:"#ffe1bd", towel:"#d8e4e2", towelLo:"#b0bebc", towelHi:"#f0f7f6", hair:"#7d4826", hairHi:"#a86a3c" },
+  { skin:"#82522f", skinLo:"#5c3720", skinHi:"#a06d43", towel:"#f2ece0", towelLo:"#cdc5b4", towelHi:"#fffaf0", hair:"#191009", hairHi:"#33231a" },
+];
+
+const STRIDE_PX = 16, WALK_FPS = 8, SPEED = STRIDE_PX * (WALK_FPS / 8);
+const ROUTES = [
+  { pts:[[30, 300], [300, 300]], tone:0, t:0 },
+  { pts:[[490, 288], [330, 288], [150, 288]], tone:1, t:44 },
+  { pts:[[126, 268], [126, 392]], tone:2, t:12 },
+  { pts:[[368, 220], [368, 302], [262, 302]], tone:3, t:72 },
+];
+const STATIC_GUESTS = [
+  { x:340, y:290, bearing:"s", tone:2 },   // under the shower
+  { x:356, y:212, bearing:"s", tone:0 },   // on the terrace
+  { x:232, y:288, bearing:"n", tone:1 },   // at the bench, facing the water
+  { x:436, y:228, bearing:"s", tone:3 },   // at the plunge edge
+];
+
+function bearingFor(dx, dy) {
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  if (ax > ay * 2.2) return { bearing:"e", mirror: dx < 0 };
+  if (ay > ax * 2.2) return { bearing: dy > 0 ? "s" : "n", mirror:false };
+  return { bearing: dy > 0 ? "se" : "ne", mirror: dx < 0 };
+}
+function routePosition(route, seconds) {
+  const pts = route.pts; let total = 0; const segs = [];
+  for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]); segs.push(d); total += d; }
+  const cycle = (total * 2) / SPEED;
+  let travelled = ((seconds + route.t) % cycle) * SPEED, reverse = false;
+  if (travelled > total) { travelled = total * 2 - travelled; reverse = true; }
+  for (let i = 0; i < segs.length; i++) {
+    if (travelled <= segs[i]) {
+      const f = segs[i] === 0 ? 0 : travelled / segs[i], a = pts[i], b = pts[i+1];
+      return { x:a[0]+(b[0]-a[0])*f, y:a[1]+(b[1]-a[1])*f, dx:(b[0]-a[0])*(reverse?-1:1), dy:(b[1]-a[1])*(reverse?-1:1) };
+    }
+    travelled -= segs[i];
+  }
+  const a = pts[pts.length-2], b = pts[pts.length-1];
+  return { x:b[0], y:b[1], dx:b[0]-a[0], dy:b[1]-a[1] };
+}
+
+/* --------------------------------------------------------------- effects --- */
+function drawWater(gg, t) {
+  g = gg;
+  const { y, h } = LAYOUT.water;
+  for (let py = y; py < y + h; py++) {
+    const d = (py - y) / h;
+    hline(0, py, NATIVE_W, R.water[d < 0.12 ? 1 : d > 0.62 ? 4 : 3]);
+  }
+  for (let i = 0; i < 300; i++) {
+    const sx = (hash(i, 1, 83) * NATIVE_W) | 0, sy = y + 4 + ((hash(i, 2, 89) * (h - 6)) | 0);
+    const len = 2 + ((hash(i, 3, 97) * 6) | 0);
+    const wob = Math.sin(t * 1.2 + i * 0.83 + sy * 0.24);
+    if (wob > 0.5) rect(sx, sy, len + 1, 1, R.water[4]);
+    else if (wob < -0.8) rect(sx, sy, len, 1, R.water[1]);
+  }
+  for (let i = 0; i < 80; i++) {
+    const sx = (hash(i, 5, 101) * NATIVE_W) | 0, sy = y + 6 + ((hash(i, 6, 103) * (h - 10)) | 0);
+    const tw = Math.sin(t * 2.6 + i * 1.9);
+    if (tw > 0.92) px(sx, sy, "#bfeaf2");
+    else if (tw > 0.74) px(sx, sy, R.water[5]);
+  }
+  gg.globalAlpha = 0.26;                                        // quay wall reflection
+  for (let py = y; py < y + 12; py++) hline((Math.sin(t*1.5+py*0.6)*1.6)|0, py, NATIVE_W, "#08222e");
+  gg.globalAlpha = 0.14;                                        // building reflection
+  for (let py = y; py < y + 22; py++) rect(LAYOUT.building.x + ((Math.sin(t*1.1+py*0.45)*2)|0), py, LAYOUT.building.w, 1, "#5a2f22");
+  gg.globalAlpha = 1;
+}
+
+function drawSteam(gg, t, x, y) {
+  g = gg;
+  for (let i = 0; i < 22; i++) {
+    const life = ((t * 0.5 + i * 0.28) % 1);
+    const rise = life * 44, drift = Math.sin(life * 2.6 + i) * 7 + life * 5;
+    gg.globalAlpha = (1 - life) * 0.4;
+    const s = 2 + ((life * 5) | 0);
+    rect(x + drift - (s >> 1), y - rise, s, s, "#e9efec");
+    gg.globalAlpha = (1 - life) * 0.2;
+    rect(x + drift - (s >> 1) - 1, y - rise - 1, s + 2, s + 2, "#dfe7e3");
+    gg.globalAlpha = 1;
+  }
+}
+
+function drawShowerWater(gg, t) {
+  g = gg;
+  const { x, y, w, h } = LAYOUT.shower;
+  const cx = x + (w >> 1);
+  for (let i = 0; i < 20; i++) {
+    const life = ((t * 2 + i * 0.21) % 1), yy = y + 10 + life * (h - 30), xx = cx - 8 + ((i * 17) % 17);
+    gg.globalAlpha = 0.6 - life * 0.28;
+    rect(xx, yy, 1, 3 + ((life * 2) | 0), "#d3ecf2");
+    gg.globalAlpha = 1;
+  }
+  for (let i = 0; i < 10; i++) {
+    const tw = Math.sin(t * 5.4 + i * 2.1);
+    if (tw > 0.45) px(cx - 9 + i * 2, y + h - 20 - ((tw * 3) | 0), "#bfeaf2");
+  }
+  gg.globalAlpha = 0.22; rect(cx - 10, y + h - 20, 20, 5, "#9fd6e2"); gg.globalAlpha = 1;
+}
+
+function drawEvening(gg) {
+  g = gg;
+  gg.globalCompositeOperation = "multiply";
+  rect(0, 0, NATIVE_W, NATIVE_H, "#4d5c8f");
+  gg.globalCompositeOperation = "lighter";
+  const glow = (cx, cy, r, c) => {
+    const grd = gg.createRadialGradient(cx, cy, 0, cx, cy, r);
+    grd.addColorStop(0, c); grd.addColorStop(1, "rgba(0,0,0,0)");
+    gg.fillStyle = grd; gg.fillRect(cx - r, cy - r, r * 2, r * 2);
+  };
+  const b = LAYOUT.building, wallY = b.y + 74;
+  glow(b.x + 104, wallY + 74, 52, "rgba(255,186,104,0.40)");
+  glow(b.x + 72, wallY + 36, 26, "rgba(255,196,124,0.34)");
+  glow(b.x + 132, wallY + 36, 26, "rgba(255,196,124,0.34)");
+  glow(b.x + 26, wallY + 34, 30, "rgba(255,214,150,0.22)");
+  glow(b.x + 60, wallY + 34, 30, "rgba(255,214,150,0.22)");
+  glow(LAYOUT.annex.x + 28, LAYOUT.annex.y + 78, 34, "rgba(255,200,130,0.28)");
+  for (const [lx, ly] of LAMPS) glow(lx, ly - 38, 36, "rgba(255,196,116,0.36)");
+  glow(LAYOUT.terrace.x + 76, LAYOUT.terrace.y + 30, 46, "rgba(255,205,140,0.16)");
+  gg.globalCompositeOperation = "source-over";
+}
+
+function drawFieldGrid(gg) {
+  g = gg;
+  for (let x = 0; x < NATIVE_W; x += TILE) { gg.globalAlpha = 0.1; rect(x, 0, 1, NATIVE_H, "#ffffff"); }
+  for (let y = 0; y < NATIVE_H; y += TILE) { gg.globalAlpha = 0.1; rect(0, y, NATIVE_W, 1, "#ffffff"); }
+  gg.globalAlpha = 0.75; gg.strokeStyle = "#e0b36a"; gg.lineWidth = 1; gg.setLineDash([3, 3]);
+  for (const r of Object.values(LAYOUT)) if (r.w) gg.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
+  gg.setLineDash([]); gg.globalAlpha = 1;
+}
+
+/* ----------------------------------------------------------------- frame --- */
+let zoom = 2, evening = false, showGrid = false, slow = false;
+function applyZoom() { cv.style.width = (NATIVE_W * zoom) + "px"; cv.style.height = (NATIVE_H * zoom) + "px"; }
+applyZoom();
+
+const start = performance.now();
+function frame(now) {
+  const t = ((now - start) / 1000) * (slow ? 0.25 : 1);
+  ctx.clearRect(0, 0, NATIVE_W, NATIVE_H);
+  ctx.drawImage(world, 0, 0);
+
+  drawWater(ctx, t);
+  drawDucks(ctx, t);
+  ctx.drawImage(overWater, 0, 0);
+  drawSteam(ctx, t, LAYOUT.building.x + 42, LAYOUT.building.y - 36);
+
+  const people = [];
+  for (const route of ROUTES) {
+    const p = routePosition(route, t);
+    const { bearing, mirror } = bearingFor(p.dx, p.dy);
+    const phase = Math.floor(t * WALK_FPS) % 8;
+    people.push({ y:p.y, draw:() => drawGuest(ctx, p.x, p.y, bearing, phase, mirror, TONES[route.tone]) });
+  }
+  for (const s of STATIC_GUESTS) people.push({ y:s.y, draw:() => drawGuest(ctx, s.x, s.y, s.bearing, 2, false, TONES[s.tone]) });
+  people.sort((a, b) => a.y - b.y).forEach((p) => p.draw());
+
+  drawShowerWater(ctx, t);          // effect-front: after the guest
+  if (evening) drawEvening(ctx);
+  if (showGrid) drawFieldGrid(ctx);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* -------------------------------------------------------------- controls --- */
+document.querySelectorAll("[data-zoom]").forEach((btn) => btn.addEventListener("click", () => {
+  document.querySelectorAll("[data-zoom]").forEach((b) => b.classList.remove("on"));
+  btn.classList.add("on"); zoom = +btn.dataset.zoom; applyZoom();
+}));
+const lightBtn = document.getElementById("light");
+lightBtn.addEventListener("click", () => { evening = !evening; lightBtn.textContent = evening ? "Aften" : "Dag"; lightBtn.classList.toggle("on", !evening); });
+const gridBtn = document.getElementById("grid");
+gridBtn.addEventListener("click", () => { showGrid = !showGrid; gridBtn.classList.toggle("on", showGrid); });
+const slowBtn = document.getElementById("slow");
+slowBtn.addEventListener("click", () => { slow = !slow; slowBtn.classList.toggle("on", slow); });
+const flatBtn = document.getElementById("flat");
+flatBtn.addEventListener("click", () => { LIT = !LIT; flatBtn.classList.toggle("on", !LIT); buildWorld(); });
+</script>
+</body>
+</html>

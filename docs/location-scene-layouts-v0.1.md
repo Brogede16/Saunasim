@@ -2,7 +2,7 @@
 
 ## Rule
 
-Each location is one large, zoomable exterior scene with a base route, a building parcel and fixed independent upgrade fields. Its exact upgrades and effects remain in the asset register; this document decides where they physically belong.
+Each location is one large, zoomable exterior scene with a base route, one or more compatible building-placement zones and fixed independent upgrade fields. Its exact upgrades and effects remain in the asset register; this document decides where they physically belong. The selected building may use a different approved zone on the same location; it is not locked to one globally fixed spot.
 
 ## Canonical Layouts
 
@@ -23,10 +23,10 @@ Each location is one large, zoomable exterior scene with a base route, a buildin
 
 1. Base routes, railings, required stairs, shore geometry and structural safety exist before any purchase.
 2. Every purchasable field has a neutral base appearance and a complete purchased appearance.
-3. Location water fields and building facade/room fields never overlap.
+3. Location water fields and building facade/room fields never overlap, including the maximum expansion envelope of every compatible building profile.
 4. Water entry includes approach, entry, activity, exit and return anchors.
 5. Roof/loft/stair use includes a visible transition before the guest appears at the upper activity field.
-6. Scenes reserve their maximum approved fields at the base-layout stage, even when the player never buys them all.
+6. Scenes reserve their maximum approved location fields and every compatible building envelope at the base-layout stage, even when the player never buys them all.
 
 ## Production Consequence
 

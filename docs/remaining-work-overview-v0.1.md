@@ -34,6 +34,7 @@ This work is deliberately not built on top of the temporary `Run Week` prototype
 4. Prove identical canonical outcomes for equivalent online and offline intervals, including a multi-day browser-closure test.
 5. Add a version-by-version migration chain, rolling local autosave history and raw JSON recovery export. A save that cannot be migrated must remain preserved and never enable replacement autosave.
 6. Replace the prototype's broad `lastReport` payload with a compact, versioned completed-period return event. It must preserve historical outcomes required by the return screen, without treating a prior resolved week as a recomputable view of current state.
+7. Upgrade the existing aggregate opening-hours model to resolve night operations from weekly off-hours (`168 − open hours`): guests use facilities only while open; chain-level technicians, automatic service preparation and construction use closed capacity first. Each technician may hold one active job, so hiring more creates concurrent chain capacity. Daytime construction or repair must visibly and mechanically disrupt only its affected facility, while night work avoids that disruption. Do not add a separate night-cleanliness failure system. The later deterministic clock then makes these same blocks continuous and offline-equivalent.
 
 ## P1: Content And Balance Before Graphics
 
@@ -43,6 +44,8 @@ This work is deliberately not built on top of the temporary `Run Week` prototype
 
 2. **Complete data cards and content sheets**
    - Review first-offer cards, asset effects, market clues, regular-memory copy and curated starter Gus presets.
+   - Freeze location-owned upgrade fields for all ten locations before reviewing building-owned upgrade fields. Keep the two ownership layers separate in data, art and route planning.
+   - Define the next layer of building and outdoor-asset upgrades as visible changes to their own authored field, each with one specific capacity, recovery, appeal, service or Gus effect. Do not add generic invisible efficiency bonuses. Budget the additional art explicitly: every approved upgrade needs its completed state, compact construction state and route/effect anchors before final asset production.
    - Do not create final backgrounds, buildings, sprite sheets or effect loops in this phase.
 
 3. **Guest resolution depth**

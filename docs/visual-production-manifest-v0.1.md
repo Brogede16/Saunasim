@@ -22,8 +22,8 @@ Make and approve these before location-specific production. They are the visual 
 | Terrain tiles | Paving, timber deck, gravel, grass, soil, water edge, canal water, simple railing | Seamless base surfaces, including corners and transitions. |
 | Shared props | Bench, planter, lamp, sign frame, towel rail, waste bin, simple fence, small tree/shrub | Props fit the fixed guest scale and never contain text. |
 | Activity modules | Outdoor shower, cold plunge, wild bath, recovery seating, low fire bowl | Each exposes the route and effect anchors defined in the pixel-art guide. |
-| Effects | Chimney steam, Aufguss steam, shower water, water ripple, splash, spa bubbles, warm light | Small reusable transparent sheets, layered independently from buildings. Ambient loops use seamless 3-6 frame sheets. |
-| Guests | Four-direction walk, idle, door-enter/exit, sit, shower, plunge/water, wild-bath frames | One neutral base sheet with palette-swappable hair, skin, towel and swimwear shade groups. |
+| Effects | Chimney steam, Aufguss steam, shower water, shower cascade, water ripple, splash, spa bubbles, warm light | Small reusable transparent sheets, layered independently from buildings. Ambient loops use seamless 3-6 frame sheets; the cascade is a triggered splash sheet rather than a loop. |
+| Guests | Eight-bearing walk, idle, door-enter/exit, sit, lounge-recline-rise, shower, cascade-rinse, plunge/water, wild-bath frames | One neutral base sheet with palette-swappable hair, skin, towel and swimwear shade groups. `lounge-recline-rise` is shared by all explicit recliner fields; `cascade-rinse` is a reusable pull-chain, bucket-tip splash and recovery-pose action for every compatible Cold Cascade Bucket. |
 | Staff | Owner walk/idle, simple reception idle, Aufguss Master walk/idle/preparation/performance | Lock the towel, fan and infusion-tool overlay set before drawing Master performance frames. Outdoor sessions must show the scheduled Master walking to the field before performance begins. |
 | UI | Venue header, full-width sauna-name field, bottom action bar, simple stat card, build card | Text is game-rendered; the art contains icons and panel framing only. |
 
@@ -52,8 +52,8 @@ Do not make the next large pack until one small scene proves all of the followin
 | --- | --- | --- |
 | Canal base | Street edge, paved workshop parcel, promenade, canal wall, water, starting railings/stairs, neutral field surfaces | The base must already look finished before a single upgrade is purchased. |
 | Workshop building | Repair Workshop base, entrance/loading port, chimney, roof, door, windows | Has fixed anchors for its own future building modules, even if those modules are not drawn yet. |
-| First upgrades | Arrival sign, reception/shop port, extra sauna volume, program sauna, workshop-yard Aufguss field, rain shower, compact cold plunge, open-port recovery field, industrial greenery, warm wild bath, low lighting | These give a full revenue/recovery/program loop and visibly occupy separate fields. |
-| Location upgrades | Canal terrace, bathing bridge, broad canal descent, quay lights, planting bays | Location-owned fields never alter the workshop itself. |
+| First upgrades | Arrival sign, reception/shop port, extra sauna volume, program sauna, workshop-yard Outdoor Gus Sauna, rain shower, compact cold plunge, open-port recovery field, industrial greenery, warm wild bath, low lighting | These give a full revenue/recovery/program loop and visibly occupy separate fields. |
+| Location upgrades | Canal terrace, Outdoor Shower, bathing bridge, quay lights, planting bays | Location-owned fields never alter the workshop itself. |
 | Guests and effects | Guest route set, owner, Aufguss Master, chimney steam, program steam, shower, canal splash/ripple, evening lights | The route must connect entrance, sauna, shop, program, shower, water and exit as relevant to purchases. |
 
 ### Exact first playable scope
@@ -124,7 +124,7 @@ Animation comes after the shared guest scale and first venue route work have bee
 | A | Walk, idle, enter/exit, sit | Every venue. |
 | A | Shower, plunge, water entry/exit, swim/float | Shower, cold and natural-water facilities. |
 | A | Steam, water, bubbles, light, fire and location-appropriate water movement | All effect anchors. Ambient water/reflection loops use 3-6 frames; activity effects remain separate. |
-| B | Master preparation, towel/fan/infusion performance, guest heat/recovery reactions | Program sauna and outdoor Aufguss fields. Lock/test tool overlays first, then draw the tool-ready body base and performance variants. |
+| B | Master preparation, towel/fan/infusion performance, guest heat/recovery reactions | Program Sauna and enclosed Outdoor Gus Saunas. Lock/test tool overlays first, then draw the tool-ready body base and performance variants. |
 | B | Roof/loft ascent transition | Rooftop, loft and upper-deck assets. |
 | C | Weather and world ambience: snow, rain, wind, birds, road traffic | Later seasonal/world pass; not required for the first playable build. |
 

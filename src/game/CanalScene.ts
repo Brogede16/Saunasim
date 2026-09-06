@@ -2,10 +2,11 @@ import Phaser from "phaser";
 import { canalAnchor, type CanalAnchorId, canalWorkshopScene } from "../content/canalWorkshopScene";
 import { type GameState, gameStore, hasModule, type ModuleId } from "../sim/game";
 import { conditionStatus, type MaintainableModuleId } from "../sim/maintenance";
+import type { GuestRouteStop } from "../sim/guestWeek";
 
 const WORLD = canalWorkshopScene.world;
 const VIEWPORT = { width: 456, height: 640 };
-const colors = { ink: 0x20333a, paving: 0xa5a69f, stone: 0x747d78, water: 0x287f99, waterLight: 0x6fbecc, brick: 0x9b563e, brickDark: 0x65382f, timber: 0x704333, warm: 0xf3bb62, green: 0x66865d, greenLight: 0x9eb980, empty: 0xc0b89f, steam: 0xe9eee9 };
+const colors = { ink: 0x20333a, paving: 0xa5a69f, pavingLight: 0xb9b8ac, stone: 0x747d78, water: 0x287f99, waterLight: 0x6fbecc, brick: 0x9b563e, brickLight: 0xbc7050, brickDark: 0x65382f, roof: 0x3f4a52, timber: 0x704333, warm: 0xf3bb62, green: 0x66865d, greenLight: 0x9eb980, empty: 0xc0b89f, steam: 0xe9eee9, route: 0xd9c783 };
 
 // A small set of fixed clustering offsets so guests sharing one anchor (Program, Shop, Shower,
 // Basic Sauna, Outdoor Gus, Cold Plunge) don't render exactly on top of each other. Slots are
@@ -31,19 +32,40 @@ const QUEUE_SLOT_SPACING = 18;
 
 type SceneModuleId = Exclude<ModuleId, "bench-refit">;
 type ModuleField = Extract<(typeof canalWorkshopScene.fields)[number], { module: string }>;
+type GuestAction = "walk" | "sit" | "shower";
+type VisibleGuest = { id: string; towel: number; route: ReadonlyArray<{ x: number; y: number }>; startedAt: number; phase: number; action: GuestAction; usesSheet: boolean };
 const moduleFields = Object.fromEntries(canalWorkshopScene.fields.filter((field): field is ModuleField => "module" in field).map((field) => [field.module, field])) as Record<SceneModuleId, ModuleField>;
+
+// A simulation stop is not a coordinate. It resolves through the authored scene graph so the
+// visible route keeps to paving and reaches outdoor facilities from the Workshop side walk.
+const STOP_SCENE_ROUTES: Record<GuestRouteStop, readonly CanalAnchorId[]> = {
+  arrival: canalWorkshopScene.routes.arrival,
+  "basic-sauna": canalWorkshopScene.routes.entrance,
+  shop: ["arrival-street", ...canalWorkshopScene.routes.shop],
+  program: ["arrival-street", ...canalWorkshopScene.routes.program],
+  "outdoor-gus": ["arrival-street", ...canalWorkshopScene.routes.outdoorGus],
+  shower: ["arrival-street", "workshop-door", "workshop-side-walk", "yard-to-shower", "shower-workshop"],
+  "cold-plunge": ["arrival-street", "workshop-door", "workshop-side-walk", "yard-to-shower", "shower-workshop", "shower-to-plunge", "cold-plunge-a"],
+  queue: ["arrival-street", "workshop-door", "workshop-side-walk", "yard-to-shower", "shower-to-plunge", "cold-plunge-queue"],
+  exit: ["workshop-door", "arrival-street"],
+};
 
 class CanalScene extends Phaser.Scene {
   private unsubscribe?: () => void;
   private staticGraphics!: Phaser.GameObjects.Graphics;
   private moduleGraphics!: Phaser.GameObjects.Graphics;
+  private routeGraphics!: Phaser.GameObjects.Graphics;
+  private guestGraphics!: Phaser.GameObjects.Graphics;
   private venueNameText!: Phaser.GameObjects.Text;
   private effectLayer!: Phaser.GameObjects.Container;
   private markerLayer!: Phaser.GameObjects.Container;
   private hostLayer!: Phaser.GameObjects.Container;
   private occupancyLayer!: Phaser.GameObjects.Container;
   private guestLayer!: Phaser.GameObjects.Container;
+  private workshopBase!: Phaser.GameObjects.Image;
   private guests = new Map<string, Phaser.GameObjects.Container>();
+  private visibleGuests: VisibleGuest[] = [];
+  private motionSprites = new Map<string, Phaser.GameObjects.Sprite>();
   private layoutKey = "";
   private effectKey = "";
   private markerKey = "";
@@ -54,22 +76,48 @@ class CanalScene extends Phaser.Scene {
 
   constructor() { super("canal"); }
 
+  preload() {
+    // This first imported sheet is intentionally limited to the empty-venue motion study. It
+    // proves the runtime consumes real animation frames before we commission the full roster.
+    this.load.spritesheet("motion-guest-v01", "/assets/sprites/guest-actions-v01.png", { frameWidth: 362, frameHeight: 271 });
+    // A composition-only walk reference. Its 4 x 4 grid is close enough to assess the scene at
+    // phone scale; a later production pass rebuilds it on the exact 32 px frame contract.
+    this.load.spritesheet("guest-walk-composition-test", "/assets/sprites/guest-walk-aligned-draft-v01.png", { frameWidth: 307, frameHeight: 319 });
+    // This source is intentionally used only for the visible Canal composition test. Its final
+    // runtime replacement will keep the same facade anchors but be a clean native-scale layer.
+    this.load.image("workshop-base-composition-test", "/assets/canal/repair-workshop-base-draft-v02.png");
+  }
+
   create() {
     const camera = this.cameras.main;
     camera.setBackgroundColor("#c8d0c7");
     camera.setBounds(0, 0, WORLD.width, WORLD.height);
-    camera.centerOn(WORLD.width / 2, WORLD.height / 2);
+    // Portrait play starts on the operational core (entrance, workshop and first extensions),
+    // rather than halfway between that core and the canal. The player can pan right to the water.
+    camera.centerOn(330, 360);
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
       if (!pointer.isDown || pointer.getDistance() < 4) return;
       camera.scrollX = Phaser.Math.Clamp(camera.scrollX - pointer.velocity.x, 0, WORLD.width - VIEWPORT.width);
     });
     this.staticGraphics = this.add.graphics();
     this.moduleGraphics = this.add.graphics();
+    this.routeGraphics = this.add.graphics();
+    this.guestGraphics = this.add.graphics();
     this.effectLayer = this.add.container();
     this.markerLayer = this.add.container();
     this.hostLayer = this.add.container();
     this.occupancyLayer = this.add.container();
     this.guestLayer = this.add.container();
+    this.staticGraphics.setDepth(0);
+    this.moduleGraphics.setDepth(2);
+    this.routeGraphics.setDepth(4);
+    this.guestGraphics.setDepth(32);
+    this.effectLayer.setDepth(12);
+    this.markerLayer.setDepth(18);
+    this.hostLayer.setDepth(22);
+    this.occupancyLayer.setDepth(24);
+    this.guestLayer.setDepth(30);
+    this.createMotionSheetAnimations();
     this.drawStaticWorld();
     this.createAmbientEffects();
     this.createInputZones();
@@ -80,8 +128,30 @@ class CanalScene extends Phaser.Scene {
     this.applySnapshot(gameStore.getState());
   }
 
+  update() {
+    if (this.visibleGuests.length === 0) return;
+    this.guestGraphics.clear();
+    for (const guest of this.visibleGuests) {
+      const position = this.visibleGuestPosition(guest, this.time.now);
+      if (guest.usesSheet) this.motionSprites.get(guest.id)?.setPosition(position.x, position.y);
+      else this.drawPixelGuest(this.guestGraphics, position.x, position.y, guest.towel, position.frame, guest.action);
+      this.guests.get(guest.id)?.setPosition(position.x, position.y);
+    }
+  }
+
+  private createMotionSheetAnimations() {
+    const define = (key: string, start: number, end: number) => {
+      if (!this.anims.exists(key)) this.anims.create({ key, frames: this.anims.generateFrameNumbers("motion-guest-v01", { start, end }), frameRate: 6, repeat: -1 });
+    };
+    define("motion-walk", 0, 3);
+    define("motion-sit", 4, 7);
+    define("motion-shower", 8, 11);
+    if (!this.anims.exists("composition-walk")) this.anims.create({ key: "composition-walk", frames: this.anims.generateFrameNumbers("guest-walk-composition-test", { start: 0, end: 3 }), frameRate: 6, repeat: -1 });
+  }
+
   private applySnapshot(snapshot: GameState) {
-    if (!this.sys.isActive()) return;
+    // `create()` runs just before Phaser reports the Scene as active. Subscription cleanup on
+    // shutdown already prevents late writes, so the first snapshot must be applied here.
     if (this.venueName !== snapshot.venueName) {
       this.venueName = snapshot.venueName;
       this.venueNameText.setText(snapshot.venueName);
@@ -127,9 +197,18 @@ class CanalScene extends Phaser.Scene {
 
   private drawStaticWorld() {
     this.staticGraphics.fillStyle(colors.paving).fillRect(0, 0, WORLD.width, WORLD.height);
+    // The scene still uses prototype geometry, but this tile rhythm tests the final low-resolution
+    // pixel-art reading without committing a large, location-specific background too early.
+    for (let x = 120; x < 672; x += 16) {
+      for (let y = (x / 16) % 2 === 0 ? 0 : 8; y < WORLD.height; y += 16) {
+        this.staticGraphics.fillStyle(colors.pavingLight, 0.32).fillRect(x + 1, y + 1, 13, 1);
+        this.staticGraphics.fillStyle(colors.stone, 0.22).fillRect(x + 1, y + 14, 13, 1);
+      }
+    }
     this.drawStreet(this.staticGraphics);
     this.drawWater(this.staticGraphics);
-    this.drawWorkshop(this.staticGraphics);
+    this.drawWorkshopGround(this.staticGraphics);
+    this.workshopBase = this.add.image(318, 294, "workshop-base-composition-test").setScale(0.275).setDepth(1);
     this.venueNameText = this.add.text(320, 516, "", { fontFamily: "Georgia, serif", fontSize: "18px", color: "#24343a", align: "center" }).setOrigin(0.5);
   }
 
@@ -166,25 +245,21 @@ class CanalScene extends Phaser.Scene {
     }
   }
 
-  private drawWorkshop(g: Phaser.GameObjects.Graphics) {
-    g.fillStyle(colors.brickDark).fillRect(160, 208, 320, 280);
-    g.fillStyle(colors.brick).fillRect(168, 216, 304, 264);
-    g.fillStyle(colors.timber).fillTriangle(144, 216, 320, 104, 496, 216);
-    g.lineStyle(4, colors.ink).strokeRect(160, 208, 320, 280);
-    g.lineStyle(4, colors.ink).strokeTriangle(144, 216, 320, 104, 496, 216);
-    g.fillStyle(colors.ink).fillRect(208, 400, 56, 80);
-    g.fillStyle(colors.timber).fillRect(214, 408, 44, 72);
-    g.fillStyle(colors.warm).fillRect(196, 272, 34, 42);
-    g.fillStyle(colors.warm).fillRect(406, 272, 34, 42);
-    g.fillStyle(colors.brickDark).fillRect(360, 136, 30, 82);
+  private drawWorkshopGround(g: Phaser.GameObjects.Graphics) {
+    // A restrained ground shadow keeps the transparent building test grounded without baking a
+    // second backdrop into the source artwork.
+    g.fillStyle(colors.ink, 0.16).fillEllipse(320, 448, 374, 72);
   }
 
   private drawFields(g: Phaser.GameObjects.Graphics, snapshot: GameState) {
     for (const field of canalWorkshopScene.fields) {
-      if (field.id === "ws-capacity" || field.id === "canal-terrace" || field.id === "canal-bridge") continue;
+      if (field.id === "ws-arrival" || field.id === "ws-shop" || field.id === "ws-capacity" || field.id === "canal-terrace" || field.id === "canal-bridge") continue;
       if (field.module && hasModule(snapshot, field.module)) continue;
-      g.fillStyle(colors.empty).fillRect(field.x, field.y, field.width, field.height);
-      g.lineStyle(3, 0x8e8c7e).strokeRect(field.x, field.y, field.width, field.height);
+      // Empty fields stay part of the natural paving/yard until a player selects that specific
+      // purchase. Permanent boxes would make an unfinished prototype read as a construction map.
+      if (snapshot.selectedModuleId !== field.module) continue;
+      g.fillStyle(colors.empty, 0.52).fillRect(field.x, field.y, field.width, field.height);
+      g.lineStyle(2, colors.warm, 0.8).strokeRect(field.x, field.y, field.width, field.height);
     }
     g.fillStyle(0x82958c).fillRect(624, 160, 80, 144);
     g.fillStyle(colors.timber).fillRect(688, 416, 144, 28);
@@ -194,8 +269,8 @@ class CanalScene extends Phaser.Scene {
   private drawModules(g: Phaser.GameObjects.Graphics, snapshot: GameState) {
     for (const [id, field] of Object.entries(moduleFields) as Array<[SceneModuleId, ModuleField]>) {
       if (!hasModule(snapshot, id)) continue;
-      if (id === "arrival") { g.fillStyle(colors.ink).fillRect(field.x, field.y + 64, field.width, 16); g.fillStyle(colors.warm).fillRect(field.x + 5, field.y + 67, field.width - 10, 10); }
-      if (id === "shop") { g.fillStyle(colors.ink).fillRect(field.x, field.y, field.width, field.height); g.fillStyle(0xe0c087).fillRect(field.x + 5, field.y + 5, field.width - 10, field.height - 10); g.fillStyle(colors.warm).fillRect(field.x + 12, field.y + 30, field.width - 24, 10); }
+      if (id === "arrival") { g.fillStyle(colors.ink).fillRect(field.x + 6, field.y + 30, 56, 8); g.fillStyle(colors.warm).fillRect(field.x + 10, field.y + 31, 48, 5); }
+      if (id === "shop") { g.fillStyle(colors.ink).fillRect(field.x + 6, field.y + 18, field.width - 12, 10); g.fillStyle(0xe0c087).fillRect(field.x + 12, field.y + 22, field.width - 24, 20); g.fillStyle(colors.warm).fillRect(field.x + 17, field.y + 26, field.width - 34, 5); }
       if (id === "program") { g.fillStyle(colors.brickDark).fillRect(field.x + 12, field.y + 26, field.width - 24, 38); g.fillStyle(colors.timber).fillTriangle(field.x, field.y + 28, field.x + field.width / 2, field.y, field.x + field.width, field.y + 28); }
       if (id === "aufguss-yard") { g.fillStyle(colors.timber).fillRect(field.x, field.y, field.width, field.height); g.lineStyle(3, colors.ink).strokeRect(field.x, field.y, field.width, field.height); g.fillStyle(0x9a673f).fillRect(field.x + 28, field.y + 42, 56, 48); }
       if (id === "shower") { g.lineStyle(7, 0xa76342).lineBetween(field.x + 28, field.y + 12, field.x + 28, field.y + 82); g.lineStyle(6, 0xa76342).lineBetween(field.x + 28, field.y + 12, field.x + 50, field.y + 12); }
@@ -269,8 +344,8 @@ class CanalScene extends Phaser.Scene {
     const capacity = snapshot.lastReport?.specialCapacity;
     if (!seats || !capacity) return;
     // Over the dedicated field when one was actually built (the Outdoor Gus Yard or the Program
-    // Sauna's own roof extension) - over the main workshop roof when the Gus is just happening in
-    // the ordinary indoor room, never at the street-level entrance door either way.
+    // Sauna's own exterior field) - over the main Workshop only when the Gus is happening in the
+    // ordinary indoor room, never at the street-level entrance door either way.
     const point = snapshot.built.includes("aufguss-yard")
       ? { x: canalAnchor("gus-master-yard").x, y: canalAnchor("gus-master-yard").y - 34 }
       : snapshot.built.includes("program")
@@ -286,9 +361,18 @@ class CanalScene extends Phaser.Scene {
   }
 
   private syncGuests(snapshot: GameState) {
-    const fallback = ["arrival-street", "workshop-door", "gus-guest-yard-a", "shop-stop", "cold-plunge-a"] as const;
+    // This is a deliberately small motion study for an empty prototype venue. It disappears as
+    // soon as a completed week has real guests, and lets us assess walk, sit and shower actions
+    // before committing to a full production sheet.
+    const fallback = [
+      { id: "motion-walk", palette: "sand", currentStop: "exit" as const, visitPath: ["arrival", "basic-sauna", "exit"] as import("../sim/guestWeek").GuestRouteStop[], demoRoute: [{ x: 88, y: 440 }, { x: 256, y: 412 }, { x: 88, y: 440 }], action: "walk" as const },
+      { id: "motion-sit", palette: "moss", currentStop: "shop" as const, visitPath: ["shop"] as import("../sim/guestWeek").GuestRouteStop[], anchor: "shop-stop" as const, action: "sit" as const },
+      { id: "motion-shower", palette: "coral", currentStop: "shower" as const, visitPath: ["shower"] as import("../sim/guestWeek").GuestRouteStop[], anchor: "shower-workshop" as const, action: "shower" as const },
+    ];
     const guests = snapshot.lastReport?.guestSnapshots ?? [];
-    const people = guests.length ? guests : fallback.map((anchor, index) => ({ id: `idle-${index}`, palette: "sand", currentStop: "arrival" as const, visitPath: ["arrival"] as import("../sim/guestWeek").GuestRouteStop[], anchor }));
+    const people = guests.length ? guests : fallback;
+    this.drawGuestRoutes(people);
+    this.startVisibleGuestRoutes(people);
     const activeIds = new Set(people.map((person) => person.id));
     for (const [id, guest] of this.guests) {
       if (activeIds.has(id)) continue;
@@ -298,19 +382,23 @@ class CanalScene extends Phaser.Scene {
     }
     people.forEach((person, index) => {
       if (this.guests.has(person.id)) return;
-      const target = "anchor" in person ? canalAnchor(person.anchor) : this.guestRouteTarget(person.currentStop, index, person.id, people);
-      const start = "anchor" in person ? target : this.guestRouteTarget("arrival", index, person.id, people);
-      const guest = this.drawPerson(this.guestLayer, start.x, start.y, this.guestColor(person.palette), person.id);
+      const anchor = "anchor" in person ? person.anchor : undefined;
+      const target = anchor ? canalAnchor(anchor) : this.guestRouteTarget(person.currentStop, index, person.id, people);
+      const start = anchor ? target : this.guestRouteTarget("arrival", index, person.id, people);
+      // The animated figure is rendered by `drawPixelGuest` in the guest layer below. This
+      // container exists only as the persistent hit target; drawing a second static person here
+      // made the old source-sheet test look like guests were duplicated or leaving a ghost behind.
+      const guest = this.add.container(start.x, start.y).setName(person.id).setSize(32, 48).setDepth(this.guestLayer.depth);
       this.guests.set(person.id, guest);
-      if (!("anchor" in person)) {
+      // The route tween owns the container position. A future walk sheet will animate its own
+      // child frames, avoiding two tweens competing for the same x/y values.
+      if (!anchor) {
         guest.setSize(28, 40).setInteractive({ useHandCursor: true });
         guest.on("pointerdown", (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
           // A guest in front of a module owns this tap; it must not select the module beneath.
           event.stopPropagation();
           gameStore.selectGuest(person.id);
         });
-        const stops = person.visitPath.slice(0, Math.max(1, person.visitPath.lastIndexOf(person.currentStop) + 1));
-        this.tweens.chain({ targets: guest, tweens: stops.map((stop) => ({ ...this.guestRouteTarget(stop, index, person.id, people), duration: 780, ease: "Sine.easeInOut" })), delay: index * 120 });
       }
     });
   }
@@ -334,9 +422,126 @@ class CanalScene extends Phaser.Scene {
   private guestColor(palette: string) { return ({ sand: 0xe7dfd4, moss: 0x9eb980, clay: 0xca8b65, slate: 0x8ca5aa, coral: 0xe69b88 } as Record<string, number>)[palette] ?? 0xe7dfd4; }
   private drawPerson(layer: Phaser.GameObjects.Container, x: number, y: number, color: number, name: string) {
     const person = this.add.container(x, y).setName(name);
-    person.add([this.add.rectangle(0, 10, 14, 18, color).setStrokeStyle(2, colors.ink), this.add.circle(0, -3, 7, 0xb67958).setStrokeStyle(2, colors.ink)]);
-    layer.add(person);
+    // This is the first runtime pixel-character base: the palette is separate from identity and
+    // later sheet frames can replace these same proportions without changing route or depth code.
+    const skin = 0xc98261;
+    const hair = 0x3d302e;
+    person.add([
+      this.add.rectangle(0, 15, 18, 4, colors.ink, 0.28),
+      this.add.rectangle(-4, 10, 5, 9, skin).setStrokeStyle(1, colors.ink),
+      this.add.rectangle(4, 10, 5, 9, skin).setStrokeStyle(1, colors.ink),
+      this.add.rectangle(-4, 17, 5, 8, skin).setStrokeStyle(1, colors.ink),
+      this.add.rectangle(4, 17, 5, 8, skin).setStrokeStyle(1, colors.ink),
+      this.add.rectangle(0, 7, 14, 13, color).setStrokeStyle(2, colors.ink),
+      this.add.rectangle(4, 9, 3, 9, 0xf5f1e5),
+      this.add.rectangle(0, -3, 13, 12, skin).setStrokeStyle(2, colors.ink),
+      this.add.rectangle(0, -8, 13, 4, hair).setStrokeStyle(1, colors.ink),
+    ]);
+    // Keep people as direct scene objects. Nested Phaser Containers silently inherited the wrong
+    // display-list state in headless WebGL, which made the route data real but the people vanish.
+    // The supplied layer remains the single source for the intended depth band.
+    person.setDepth(layer.depth);
     return person;
+  }
+
+  private drawGuestRoutes(people: readonly { id: string; currentStop: GuestRouteStop; anchor?: CanalAnchorId; demoRoute?: ReadonlyArray<{ x: number; y: number }> }[]) {
+    this.routeGraphics.clear();
+    for (const [personIndex, person] of people.entries()) {
+      const route = person.demoRoute
+        ?? (person.anchor ? [canalAnchor(person.anchor)] : this.visibleRouteForStop(person.currentStop, personIndex, person.id, people));
+      for (let index = 1; index < route.length; index += 1) {
+        const from = route[index - 1];
+        const to = route[index];
+        this.routeGraphics.lineStyle(2, colors.route, 0.48).lineBetween(from.x, from.y, to.x, to.y);
+      }
+    }
+  }
+
+  private startVisibleGuestRoutes(people: readonly ({ id: string; palette: string; currentStop: GuestRouteStop; visitPath: readonly GuestRouteStop[]; anchor?: CanalAnchorId; demoRoute?: ReadonlyArray<{ x: number; y: number }>; action?: GuestAction })[]) {
+    const startedAt = this.time.now;
+    this.clearMotionSprites();
+    this.visibleGuests = people.map((person, index) => {
+      const route = person.demoRoute
+        ?? (person.anchor
+        ? [canalAnchor(person.anchor as CanalAnchorId)]
+        : this.visibleRouteForStop(person.currentStop, index, person.id, people));
+      // Only the walk reference uses generated art here. The other actions retain deterministic
+      // pixel placeholders until their own aligned frames exist.
+      return { id: person.id, towel: this.guestColor(person.palette), route, startedAt, phase: index * 180, action: person.action ?? "walk", usesSheet: person.id === "motion-walk" };
+    });
+    for (const guest of this.visibleGuests) {
+      if (!guest.usesSheet) continue;
+      const start = guest.route[0];
+      const compositionTest = guest.id === "motion-walk";
+      const sprite = this.add.sprite(start.x, start.y, compositionTest ? "guest-walk-composition-test" : "motion-guest-v01", 0)
+        .setOrigin(0.5, compositionTest ? 0.88 : 0.84)
+        .setScale(compositionTest ? 0.16 : 0.23)
+        .setDepth(34);
+      sprite.play(compositionTest ? "composition-walk" : `motion-${guest.action}`);
+      this.motionSprites.set(guest.id, sprite);
+    }
+  }
+
+  private clearMotionSprites() {
+    for (const sprite of this.motionSprites.values()) sprite.destroy();
+    this.motionSprites.clear();
+  }
+
+  private visibleRouteForStop(stop: GuestRouteStop, index: number, personId: string, people: readonly { id: string; currentStop: GuestRouteStop }[]) {
+    const route: Array<{ x: number; y: number }> = STOP_SCENE_ROUTES[stop].map((anchor) => {
+      const point = canalAnchor(anchor);
+      return { x: point.x, y: point.y };
+    });
+    route[route.length - 1] = this.guestRouteTarget(stop, index, personId, people);
+    return route;
+  }
+
+  private visibleGuestPosition(guest: VisibleGuest, time: number) {
+    if (guest.route.length < 2) return { ...guest.route[0], frame: Math.floor((time + guest.phase) / 170) % 4 };
+    const legDuration = 780;
+    const walkDuration = (guest.route.length - 1) * legDuration;
+    const loopDuration = walkDuration + 1_100;
+    const elapsed = (time - guest.startedAt + guest.phase) % loopDuration;
+    if (elapsed >= walkDuration) return { ...guest.route[guest.route.length - 1], frame: Math.floor((time + guest.phase) / 170) % 4 };
+    const segment = Math.floor(elapsed / legDuration);
+    const rawProgress = (elapsed % legDuration) / legDuration;
+    const progress = rawProgress < 0.5 ? 2 * rawProgress * rawProgress : 1 - ((-2 * rawProgress + 2) ** 2) / 2;
+    const from = guest.route[segment];
+    const to = guest.route[segment + 1];
+    return { x: Phaser.Math.Linear(from.x, to.x, progress), y: Phaser.Math.Linear(from.y, to.y, progress), frame: Math.floor(elapsed / 150) % 4 };
+  }
+
+  private drawPixelGuest(g: Phaser.GameObjects.Graphics, x: number, y: number, towel: number, frame: number, action: GuestAction) {
+    const skin = 0xc98261;
+    const hair = 0x3d302e;
+    if (action === "sit") {
+      const footLift = frame % 2 === 0 ? 0 : -2;
+      g.fillStyle(colors.ink).fillRect(x - 13, y + 8, 26, 4);
+      g.fillStyle(colors.timber).fillRect(x - 12, y + 7, 24, 2).fillRect(x - 10, y + 11, 3, 5).fillRect(x + 7, y + 11, 3, 5);
+      g.fillStyle(colors.ink).fillRect(x - 7, y - 4, 13, 13);
+      g.fillStyle(towel).fillRect(x - 6, y - 3, 11, 9);
+      g.fillStyle(skin).fillRect(x - 5, y - 15, 10, 10).fillRect(x + 4, y + 5 + footLift, 6, 3);
+      g.fillStyle(hair).fillRect(x - 5, y - 16, 10, 4);
+      return;
+    }
+    if (action === "shower") {
+      g.lineStyle(3, 0x9a673f).lineBetween(x + 10, y - 30, x + 10, y - 17).lineBetween(x + 3, y - 30, x + 10, y - 30);
+      for (let drop = 0; drop < 3; drop += 1) {
+        const dropY = y - 16 + ((frame * 4 + drop * 6) % 14);
+        g.fillStyle(colors.waterLight, 0.8).fillRect(x + 1 + drop * 4, dropY, 2, 7);
+      }
+    }
+    const stride = [-2, 0, 2, 0][frame];
+    const armSwing = [2, 0, -2, 0][frame];
+    g.fillStyle(colors.ink).fillRect(x - 8, y + 12, 16, 3);
+    g.fillStyle(skin).fillRect(x - 5 + stride, y + 8, 4, 9).fillRect(x + 1 - stride, y + 8, 4, 9);
+    g.fillStyle(colors.ink).fillRect(x - 6, y + 7, 12, 11);
+    g.fillStyle(towel).fillRect(x - 5, y + 8, 10, 9);
+    g.fillStyle(0xf5f1e5).fillRect(x + 2 + stride / 2, y + 10, 2, 6);
+    g.fillStyle(colors.ink).fillRect(x - 6, y - 7, 12, 13);
+    g.fillStyle(skin).fillRect(x - 5, y - 6, 10, 10);
+    g.fillStyle(hair).fillRect(x - 5, y - 7, 10, 4);
+    g.fillStyle(skin).fillRect(x - 8, y - 1 + armSwing, 3, 8).fillRect(x + 5, y - 1 - armSwing, 3, 8);
   }
 
   private clearLayer(layer: Phaser.GameObjects.Container) {
@@ -346,8 +551,8 @@ class CanalScene extends Phaser.Scene {
     }
   }
 
-  private guestRouteTarget(stop: import("../sim/guestWeek").GuestRouteStop, index: number, personId: string, people: readonly { id: string; currentStop: import("../sim/guestWeek").GuestRouteStop }[]) {
-    const anchors: Record<import("../sim/guestWeek").GuestRouteStop, CanalAnchorId> = {
+  private guestRouteTarget(stop: GuestRouteStop, index: number, personId: string, people: readonly { id: string; currentStop: GuestRouteStop }[]) {
+    const anchors: Record<GuestRouteStop, CanalAnchorId> = {
       arrival: "arrival-street", queue: "cold-plunge-queue", "basic-sauna": "workshop-door", program: "program-door", "outdoor-gus": "gus-guest-yard-a", shower: "shower-workshop", "cold-plunge": "cold-plunge-a", shop: "shop-stop", exit: "arrival-street",
     };
     const point = canalAnchor(anchors[stop]);

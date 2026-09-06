@@ -43,12 +43,12 @@ describe("Canal operating scenarios", () => {
     expect(report.specialOccupancy).toBeGreaterThanOrEqual(80);
   });
 
-  it("makes the Outdoor Gus Yard help a social promise rather than all programmes equally", () => {
+  it("makes the Outdoor Gus Sauna help a social promise rather than all programmes equally", () => {
     const social = { ...starterProgram, intent: "Social Energy" as const, performance: "Rhythmic Flow" as const };
     const compact = simulateCanalWeek({ cash: 0, built: [], masterHired: true, admissionPrice: 24, activeProgram: social });
     const yard = simulateCanalWeek({ cash: 0, built: ["aufguss-yard"], masterHired: true, admissionPrice: 24, activeProgram: social });
     expect(yard.specialSeats).toBeGreaterThan(compact.specialSeats);
-    expect(yard.venueDemandNote).toContain("Outdoor Gus Yard");
+    expect(yard.venueDemandNote).toContain("Outdoor Gus Sauna");
   });
 
   it("treats a recovery promise without its physical asset as a failed venue fit", () => {

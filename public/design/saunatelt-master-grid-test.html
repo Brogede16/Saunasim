@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Saunatelt Camp Master Grid</title>
+    <style>
+      :root { color-scheme: dark; font-family: Georgia, serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 20px; background: #171817; color: #f3eadb; }
+      main { width: min(100%, 760px); border: 1px solid #6f5b43; background: #2d251e; box-shadow: 0 18px 48px #0008; }
+      header { padding: 20px 22px 15px; border-bottom: 1px solid #6f5b43; }
+      h1 { margin: 0; font-size: clamp(22px, 6vw, 34px); font-weight: 500; }
+      p { margin: 7px 0 0; color: #cdbba5; line-height: 1.45; }
+      .stage { display: grid; place-items: center; padding: 16px; background: #101210; }
+      canvas { display: block; width: min(100%, 640px); height: auto; border: 1px solid #718269; image-rendering: pixelated; image-rendering: crisp-edges; }
+      .controls { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px 22px 20px; border-top: 1px solid #6f5b43; }
+      label { display: flex; align-items: center; gap: 7px; min-height: 38px; padding: 7px 10px; border: 1px solid #7f6a50; background: #382d25; color: #eadac2; cursor: pointer; font-size: 14px; }
+      input { width: 16px; height: 16px; accent-color: #d19750; }
+      .note { flex-basis: 100%; margin: 4px 0 0; color: #cdbba5; font-size: 13px; }
+      @media (max-width: 480px) { body { padding: 0; } main { border: 0; min-height: 100vh; } .stage { padding: 8px; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Saunatelt Camp: Master Grid</h1>
+        <p>All modules are constructed on the same pixel grid, palette and perspective. They are independent objects, not separately generated pictures placed on top of one another.</p>
+      </header>
+      <section class="stage" aria-label="Interactive Saunatelt Camp pixel-grid composition">
+        <canvas id="world" width="320" height="240"></canvas>
+      </section>
+      <section class="controls" aria-label="Saunatelt Camp module controls">
+        <label><input data-module="arrival" type="checkbox" /> Arrival/shop upgrade</label>
+        <label><input data-module="service" type="checkbox" /> Changing tent</label>
+        <label><input data-module="sauna" type="checkbox" /> Second sauna tent</label>
+        <label><input data-module="recovery" type="checkbox" /> Recovery shelter</label>
+        <label><input data-module="shower" type="checkbox" /> Outdoor shower</label>
+        <p class="note">Gold dot: fixed entry anchor. Grey route: guest path. Purple dot: location-owned facility anchor.</p>
+      </section>
+    </main>
+    <script>
+      const canvas = document.querySelector("#world");
+      const ctx = canvas.getContext("2d");
+      ctx.imageSmoothingEnabled = false;
+      const enabled = new Set();
+      const palette = {
+        grass: "#758f67", grassLight: "#93a97a", path: "#a69b7d", pathLight: "#c2b595",
+        ink: "#253039", canvasDark: "#a78e69", canvas: "#d6bf91", canvasLight: "#ead6a7",
+        timberDark: "#4a382c", timber: "#78533a", timberLight: "#a97a4e", warm: "#f0a942",
+        stone: "#768186", purple: "#a28ec2", water: "#5fa5ac", steam: "#e7eee5"
+      };
+
+      function polygon(points, fill, stroke = palette.ink) {
+        ctx.beginPath();
+        ctx.moveTo(points[0][0], points[0][1]);
+        for (const [x, y] of points.slice(1)) ctx.lineTo(x, y);
+        ctx.closePath();
+        ctx.fillStyle = fill;
+        ctx.fill();
+        if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke(); }
+      }
+
+      function rect(x, y, width, height, fill, stroke = null) {
+        ctx.fillStyle = fill;
+        ctx.fillRect(x, y, width, height);
+        if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, width - 1, height - 1); }
+      }
+
+      function drawGround() {
+        rect(0, 0, 320, 240, palette.grass);
+        for (let y = 8; y < 240; y += 19) for (let x = (y / 19) % 2 ? 13 : 5; x < 320; x += 31) rect(x, y, 2, 1, palette.grassLight);
+        polygon([[0, 192], [88, 165], [151, 168], [205, 200], [320, 224], [320, 240], [0, 240]], palette.path, null);
+        for (let x = 7; x < 320; x += 26) rect(x, 210 + (x % 4), 14, 1, palette.pathLight);
+      }
+
+      function drawTent(x, y, size, door = false, chimney = true) {
+        const w = 68 * size;
+        const h = 56 * size;
+        polygon([[x, y + h * .66], [x + w * .48, y], [x + w, y + h * .38], [x + w * .94, y + h], [x + w * .22, y + h]], palette.canvasDark);
+        polygon([[x + 3, y + h * .65], [x + w * .48, y + 3], [x + w * .52, y + h * .70], [x + w * .21, y + h - 3]], palette.canvasLight, null);
+        polygon([[x + w * .52, y + h * .70], [x + w * .48, y + 3], [x + w - 3, y + h * .40], [x + w * .92, y + h - 3]], palette.canvas, null);
+        ctx.strokeStyle = palette.canvasDark; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x + w * .48, y + 5); ctx.lineTo(x + w * .48, y + h * .70); ctx.lineTo(x + w * .92, y + h - 4); ctx.stroke();
+        if (chimney) {
+          rect(x + w * .68, y + h * .12, 7 * size, 20 * size, palette.ink, palette.ink);
+          rect(x + w * .67, y + h * .10, 9 * size, 4 * size, palette.stone, palette.ink);
+        }
+        if (!door) return;
+        const dx = x + w * .18;
+        const dy = y + h * .53;
+        rect(dx - 3, dy + 4, 30 * size, 22 * size, palette.timberDark, palette.ink);
+        rect(dx, dy + 6, 24 * size, 17 * size, palette.warm, palette.ink);
+        rect(dx + 2, dy + 8, 20 * size, 13 * size, "#a05b2b");
+        rect(dx - 6, dy + 20, 34 * size, 4 * size, palette.timber, palette.ink);
+        rect(dx - 4, dy + 24, 31 * size, 5 * size, palette.timberLight, palette.ink);
+      }
+
+      function drawArrivalUpgrade() {
+        rect(114, 139, 38, 5, palette.timberDark, palette.ink);
+        rect(118, 136, 30, 4, palette.timber, palette.ink);
+        rect(120, 137, 25, 1, palette.timberLight);
+        rect(111, 146, 3, 17, palette.timberDark, palette.ink);
+        rect(151, 146, 3, 17, palette.timberDark, palette.ink);
+        rect(108, 163, 49, 3, palette.timber, palette.ink);
+        rect(106, 166, 53, 4, palette.timberLight, palette.ink);
+        rect(115, 141, 3, 5, palette.warm, palette.ink);
+      }
+
+      function drawServiceTent() {
+        drawTent(234, 138, .62, true, false);
+        rect(243, 176, 21, 3, palette.timber, palette.ink);
+        rect(247, 179, 14, 3, palette.timberLight, palette.ink);
+      }
+
+      function drawSecondSauna() {
+        drawTent(32, 142, .72, true, true);
+        rect(50, 182, 18, 3, palette.timber, palette.ink);
+      }
+
+      function drawRecoveryShelter() {
+        rect(203, 177, 49, 4, palette.timberDark, palette.ink);
+        rect(207, 181, 4, 22, palette.timber, palette.ink);
+        rect(246, 181, 4, 22, palette.timber, palette.ink);
+        polygon([[210, 177], [225, 168], [251, 176]], palette.canvas, palette.ink);
+        rect(215, 198, 29, 4, palette.timber, palette.ink);
+        rect(218, 202, 3, 6, palette.timberDark, palette.ink);
+        rect(238, 202, 3, 6, palette.timberDark, palette.ink);
+      }
+
+      function drawShower() {
+        rect(276, 151, 3, 42, palette.timberDark, palette.ink);
+        rect(277, 151, 15, 3, palette.timber, palette.ink);
+        rect(289, 154, 3, 5, palette.ink, palette.ink);
+        rect(284, 159, 1, 12, palette.water);
+        rect(289, 160, 1, 15, palette.water);
+        rect(294, 159, 1, 10, palette.water);
+        ctx.beginPath(); ctx.arc(287, 194, 5, 0, Math.PI * 2); ctx.fillStyle = palette.purple; ctx.fill();
+      }
+
+      function drawRoute() {
+        ctx.strokeStyle = palette.pathLight; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(0, 211); ctx.lineTo(75, 198); ctx.lineTo(101, 180); ctx.lineTo(126, 168); ctx.stroke();
+        ctx.beginPath(); ctx.arc(126, 168, 4, 0, Math.PI * 2); ctx.fillStyle = "#f5d96a"; ctx.fill(); ctx.strokeStyle = palette.ink; ctx.lineWidth = 1; ctx.stroke();
+      }
+
+      function render() {
+        drawGround();
+        drawTent(95, 82, 1.55, true, true);
+        if (enabled.has("arrival")) drawArrivalUpgrade();
+        if (enabled.has("service")) drawServiceTent();
+        if (enabled.has("sauna")) drawSecondSauna();
+        if (enabled.has("recovery")) drawRecoveryShelter();
+        if (enabled.has("shower")) drawShower();
+        drawRoute();
+      }
+
+      for (const toggle of document.querySelectorAll("input[data-module]")) {
+        toggle.addEventListener("change", () => {
+          if (toggle.checked) enabled.add(toggle.dataset.module);
+          else enabled.delete(toggle.dataset.module);
+          render();
+        });
+      }
+      render();
+    </script>
+  </body>
+</html>

@@ -93,7 +93,7 @@ function physicalProgramDemandFit(program: NonNullable<BalanceInput["activeProgr
   }
   // "Forge & Steam" route -> Social need.
   if (program.intent === "Social Energy" && has("aufguss-yard")) {
-    return { multiplier: 1.15, priceSensitivity: 0.85, note: "Venue fit: the Outdoor Gus Yard supports a shared programme." };
+    return { multiplier: 1.15, priceSensitivity: 0.85, note: "Venue fit: the Outdoor Gus Sauna supports a shared programme." };
   }
   // Special premium is not its own route: it is Workshop Classic or Forge & Steam delivered at a
   // price the venue's actual visible support can sustain, so it reuses their physical checks
@@ -261,7 +261,7 @@ export function simulateCanalWeek(input: BalanceInput): WeekReport {
   else if (turnedAwayFromGus >= 5) signal = "Gus demand is outrunning capacity. Guests are being turned away from a session they wanted.";
   else if (hasProgramSauna && conditionStatus(programCondition) !== "Healthy") signal = `Program Sauna is ${conditionStatus(programCondition).toLowerCase()}; programme capacity is reduced until it is serviced.`;
   else if (hasProgramSauna && !hasYard) signal = "The Program Sauna has spare potential. Improve the offer before buying more capacity.";
-  else if (hasYard) signal = "Outdoor Gus is drawing attention. Master time and recovery flow now matter more.";
+  else if (hasYard) signal = "The Outdoor Gus Sauna is drawing attention. Master time and recovery flow now matter more.";
 
   return {
     admissions, specialSeats, specialCapacity, specialOccupancy, shopSales, shopLines, revenue, operatingCosts, loanRepayment, netResult, signal,

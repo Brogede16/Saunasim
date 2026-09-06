@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Guest Rig 01 Direction Test</title>
+    <style>
+      :root { color-scheme: dark; font-family: Georgia, serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #171817; color: #f3eadb; }
+      main { width: min(100%, 760px); border: 1px solid #6f5b43; background: #2d251e; box-shadow: 0 18px 48px #0008; }
+      header { padding: 20px 22px 15px; border-bottom: 1px solid #6f5b43; }
+      h1 { margin: 0; font-size: clamp(22px, 6vw, 34px); font-weight: 500; }
+      p { margin: 7px 0 0; color: #cdbba5; line-height: 1.45; }
+      .stage { display: grid; place-items: center; padding: 18px; background: #111512; }
+      canvas { display: block; width: min(100%, 720px); height: auto; border: 1px solid #82967b; image-rendering: pixelated; image-rendering: crisp-edges; }
+      .controls { display: flex; justify-content: space-between; gap: 12px; padding: 15px 22px 20px; border-top: 1px solid #6f5b43; color: #d8c2a7; font-size: 14px; }
+      kbd { border: 1px solid #967856; border-bottom-width: 3px; border-radius: 3px; padding: 1px 5px; background: #3d3027; color: #fff6e6; font: 12px ui-monospace, monospace; }
+      @media (max-width: 420px) { body { padding: 0; } main { min-height: 100vh; border: 0; } .stage { padding: 10px; } .controls { align-items: flex-start; flex-direction: column; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Guest Rig 01: Direction Test</h1>
+        <p>Move with the arrow keys. This is a live test of scale and true front, back and side views. The eight-frame walking cycle will replace this held pose once it has been produced.</p>
+      </header>
+      <section class="stage" aria-label="Interactive guest direction test">
+        <canvas id="scene" width="720" height="520"></canvas>
+      </section>
+      <section class="controls">
+        <span><kbd>Arrow keys</kbd> move the guest</span>
+        <span id="readout">Facing South</span>
+      </section>
+    </main>
+    <script>
+      const canvas = document.querySelector("#scene");
+      const context = canvas.getContext("2d");
+      const readout = document.querySelector("#readout");
+      context.imageSmoothingEnabled = false;
+
+      const keys = new Set();
+      const guest = { x: 360, y: 274, direction: "south" };
+      const directionLabels = { north: "North", south: "South", east: "East", west: "West" };
+      const frames = { south: [0, 0], east: [1, 0], north: [0, 1], west: [1, 1] };
+      const sheet = new Image();
+      let frameWidth = 0;
+      let frameHeight = 0;
+      let previousTimestamp = 0;
+
+      function drawGround() {
+        context.fillStyle = "#6f936d";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = "#789e70";
+        for (let y = 10; y < canvas.height; y += 32) {
+          for (let x = (y / 32) % 2 ? 22 : 6; x < canvas.width; x += 46) context.fillRect(x, y, 3, 2);
+        }
+        context.fillStyle = "#9b9277";
+        context.fillRect(0, 332, canvas.width, 94);
+        context.fillStyle = "#bdb496";
+        for (let x = 0; x < canvas.width; x += 36) context.fillRect(x, 378, 24, 2);
+        context.fillStyle = "#537c84";
+        context.fillRect(0, 426, canvas.width, 94);
+        context.fillStyle = "#8db9bd";
+        for (let x = 18; x < canvas.width; x += 62) context.fillRect(x, 457, 18, 2);
+      }
+
+      function drawGuest() {
+        if (!frameWidth) return;
+        const [column, row] = frames[guest.direction];
+        const displayHeight = 156;
+        const displayWidth = Math.round(frameWidth * (displayHeight / frameHeight));
+        const left = Math.round(guest.x - displayWidth / 2);
+        const top = Math.round(guest.y - displayHeight + 12);
+        context.drawImage(sheet, column * frameWidth, row * frameHeight, frameWidth, frameHeight, left, top, displayWidth, displayHeight);
+      }
+
+      function render() {
+        drawGround();
+        drawGuest();
+        readout.textContent = `Facing ${directionLabels[guest.direction]}`;
+      }
+
+      function update(delta) {
+        let dx = 0;
+        let dy = 0;
+        if (keys.has("ArrowLeft")) dx -= 1;
+        if (keys.has("ArrowRight")) dx += 1;
+        if (keys.has("ArrowUp")) dy -= 1;
+        if (keys.has("ArrowDown")) dy += 1;
+        if (!dx && !dy) return;
+
+        if (Math.abs(dx) >= Math.abs(dy)) guest.direction = dx < 0 ? "west" : "east";
+        else guest.direction = dy < 0 ? "north" : "south";
+
+        const length = Math.hypot(dx, dy);
+        const speed = 146;
+        guest.x = Math.max(46, Math.min(canvas.width - 46, guest.x + (dx / length) * speed * delta));
+        guest.y = Math.max(142, Math.min(canvas.height - 8, guest.y + (dy / length) * speed * delta));
+      }
+
+      function tick(timestamp) {
+        const delta = Math.min((timestamp - previousTimestamp) / 1000, 0.05);
+        previousTimestamp = timestamp;
+        update(delta);
+        render();
+        requestAnimationFrame(tick);
+      }
+
+      window.addEventListener("keydown", (event) => {
+        if (!event.key.startsWith("Arrow")) return;
+        event.preventDefault();
+        keys.add(event.key);
+      });
+      window.addEventListener("keyup", (event) => keys.delete(event.key));
+      window.addEventListener("blur", () => keys.clear());
+
+      sheet.addEventListener("load", () => {
+        frameWidth = sheet.naturalWidth / 2;
+        frameHeight = sheet.naturalHeight / 2;
+        requestAnimationFrame(tick);
+      });
+      sheet.src = "./guest-rig-01-directions-v01.png";
+    </script>
+  </body>
+</html>

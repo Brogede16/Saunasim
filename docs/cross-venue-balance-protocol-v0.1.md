@@ -6,6 +6,8 @@ This protocol defines how Sauna Sim is balanced once every offer, asset and prog
 
 It is a test method, not a final price table. Dollar values remain provisional until the scenarios run against a deterministic simulation.
 
+Content review therefore approves an asset's physical purpose and qualitative direction first. This protocol later assigns and tests all numeric magnitudes together: purchase price, running cost, capacity increment, targeted attraction, credible price acceptance, retention and probability. Do not lock one isolated bonus from intuition while the rest of the system remains unmodelled.
+
 ## Balance Principle
 
 Every viable venue family must offer three kinds of success:
@@ -121,6 +123,17 @@ A scenario passes only when all statements are true:
 3. Test every building seed at `developed` band.
 4. Test later premium seeds at `ambitious` and `stressed` bands.
 5. Only then tune chain Brand Value, rank, trends and multiplayer-reference inputs.
+
+## Automated Combination Sweep
+
+After all approved facility cards, program components and staff rules are implemented, run a deterministic automated sweep in addition to the representative scenario bands.
+
+1. Enumerate every **legal** venue configuration for each approved offer: compatible base, installed upgrades, staff count, opening window, admission price band and program-room assignment.
+2. For each configuration, sample the legal Gus space through a curated complete library plus boundary cases: low/high heat, short/long duration, low/high supplement, compatible/incompatible recovery finish, each intent, and each available Master/equipment state. Do not brute-force meaningless permutations that differ only by player-written program name.
+3. Flag dominated choices, unreachable content, capacity without an economic trade-off, a single universal best route, impossible debt service and any upgrade that never improves the physical problem it claims to solve.
+4. Preserve representative failing seeds as regression tests before changing numbers. A balance change must update the scenario table and record its reason.
+
+The sweep is a design instrument, not a promise that every legal combination earns money. It proves that weak outcomes are legible consequences of price, fit, capacity, execution or debt, rather than accidental spreadsheet traps.
 
 ## Deliverables From The Balance Pass
 

@@ -243,13 +243,13 @@ export function simulateGuestWeek(input: BalanceInput, report: Pick<WeekReport, 
       reaction = guestFeedbackLine("turnedAway", week, index);
       outcome = "frustrated";
       programFit = "Strong match";
-    } else if (hasYard && (wantsProgram || firstVisibleProgram) && index % 2 === 0) {
+    } else if (hasYard && (wantsProgram || firstVisibleProgram)) {
       visitPath = ["arrival", "outdoor-gus", "exit"];
       currentStop = "outdoor-gus";
-      latestActivity = isWalkUp ? "Joining the outdoor Gus as a walk-up" : "Joining the outdoor Gus";
+      latestActivity = isWalkUp ? "Entering the Outdoor Gus Sauna as a walk-up" : "Entering the Outdoor Gus Sauna";
       reaction = guestFeedbackLine(isWalkUp ? "walkUp" : "outdoorGus", week, index);
       visibleProgramGuest = true;
-    } else if (hasProgram && (wantsProgram || firstVisibleProgram) && index % 2 === 1) {
+    } else if (hasProgram && (wantsProgram || firstVisibleProgram)) {
       visitPath = ["arrival", "program", "exit"];
       currentStop = "program";
       latestActivity = isWalkUp ? "Taking a spare seat in the programme Gus as a walk-up" : "Taking a seat for the programme Gus";

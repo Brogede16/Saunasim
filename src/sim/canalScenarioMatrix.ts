@@ -60,7 +60,7 @@ export const canalScenarioMatrix: CanalScenario[] = [
   {
     id: "social-yard-fit",
     name: "Social yard fit",
-    purpose: "Outdoor Gus Yard supports a fitting shared programme through demand, not a generic bonus.",
+    purpose: "Outdoor Gus Sauna supports a fitting shared programme through demand, not a generic bonus.",
     input: { ...base, built: ["aufguss-yard"], activeProgram: { ...starterProgram, intent: "Social Energy", performance: "Rhythmic Flow" } },
   },
   {

@@ -33,22 +33,22 @@ export const venueModules = [
   },
   {
     id: "program", name: "Program Sauna Volume", owner: "building", ownerTags: ["repair-workshop"], requiresTags: ["canal"],
-    capacityChannels: ["program"], routeAnchors: ["workshop-door", "program-door"],
+    capacityChannels: ["program"], routeAnchors: ["workshop-door", "workshop-side-walk", "program-door"],
     economy: { price: 32_000, buildHours: 8, operatingChannel: "program" }, condition: "technical", visual: { fieldId: "ws-program", package: "workshop-program-volume", visible: true }, shortEffect: "More programme seats",
   },
   {
-    id: "aufguss-yard", name: "Outdoor Gus Yard", owner: "location", ownerTags: ["canal"], requiresTags: ["outdoor-program-space"],
-    capacityChannels: ["program"], routeAnchors: ["workshop-door", "gus-master-yard", "gus-guest-yard-a"],
+    id: "aufguss-yard", name: "Outdoor Gus Sauna", owner: "location", ownerTags: ["canal"], requiresTags: ["outdoor-program-space"],
+    capacityChannels: ["program"], routeAnchors: ["workshop-door", "workshop-side-walk", "gus-master-yard", "gus-guest-yard-a"],
     economy: { price: 16_000, buildHours: 6, operatingChannel: "program" }, condition: "none", visual: { fieldId: "ws-gus-yard", package: "canal-outdoor-gus-yard", visible: true }, shortEffect: "Outdoor event Gus",
   },
   {
     id: "shower", name: "Copper Rain Shower", owner: "location", ownerTags: ["canal"], requiresTags: ["outdoor-recovery-space"],
-    capacityChannels: ["recovery"], routeAnchors: ["yard-to-shower", "shower-workshop", "shower-to-plunge"],
+    capacityChannels: ["recovery"], routeAnchors: ["workshop-side-walk", "yard-to-shower", "shower-workshop", "shower-to-plunge"],
     economy: { price: 3_000, buildHours: 2, operatingChannel: "recovery" }, condition: "technical", visual: { fieldId: "ws-shower", package: "canal-rain-shower", visible: true }, shortEffect: "Outdoor Shower finish",
   },
   {
     id: "cold-plunge", name: "Compact Cold Plunge", owner: "location", ownerTags: ["canal"], requiresTags: ["outdoor-recovery-space"],
-    capacityChannels: ["recovery"], routeAnchors: ["shower-to-plunge", "cold-plunge-a", "cold-plunge-b", "cold-plunge-queue"],
+    capacityChannels: ["recovery"], routeAnchors: ["workshop-side-walk", "shower-to-plunge", "cold-plunge-a", "cold-plunge-b", "cold-plunge-queue"],
     economy: { price: 9_500, buildHours: 5, operatingChannel: "recovery" }, condition: "technical", visual: { fieldId: "ws-cold", package: "canal-cold-plunge", visible: true }, shortEffect: "Cold recovery",
   },
   {

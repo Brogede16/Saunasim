@@ -2,7 +2,15 @@
 
 ## Rule
 
-Every purchasable visible asset or upgrade receives one game-data card before it enters production. Art, guest routes and economics are approved together; no asset exists only because it looks good unless it is explicitly marked decorative.
+Every purchasable visible asset or upgrade receives one game-data card before it enters production. Art, guest routes and economics are approved together; no asset exists only because it looks good unless it is explicitly marked decorative. A functional upgrade may never exist only as a number or menu state: it requires a distinct completed-world graphic. If guests can use it, it also requires at least one authored guest action or triggered effect; purely structural upgrades still require their static transformation plus any appropriate shared ambient effect.
+
+Every purchasable location improvement also has a bounded gameplay effect. Its card must name at least one of: physical capacity/flow, Gus/recovery capability, targeted local attraction, credible price acceptance or return/retention. Lights, planting, paths, view frames and similar scene-defining improvements usually contribute through visible promise and a narrow attraction or price-acceptance route; they may not become unqualified chain-wide income multipliers.
+
+Approval order matters: before a player-facing first offer is chosen, a card locks the facility's function, ownership, compatible field class, route/effect requirements and asset workload, but not its final silhouette or material. The selected location + building base then defines the concrete variant. For example, an Expanded Plunge Basin may become a timber canal basin, a steel industrial trough or a sheltered roof basin while retaining the same capacity, entry anchors and shared water actions. This avoids designing a visually incompatible upgrade before the first purchased venue establishes the scene language.
+
+Every concrete visual phrase in an approved card becomes a production requirement. For example, "spa behind a dune with bubbles, steam and timber screens" requires a beach spa base asset, dune/screen overlay assets, bubble and steam effect sheets, and the relevant guest entry/seated/exit anchors. Descriptive prose is not permission to omit those objects later.
+
+A chosen venue starts with its location/plot and base building only. It does not arrive with a prescribed package of add-on facilities. The player buys compatible facilities in any sensible order, then may buy their approved second-layer upgrades. The authored scene reserves compatible fields from the start, but keeps them visually inactive until the player installs the relevant facility.
 
 ## Required Fields
 
@@ -205,3 +213,171 @@ An additional shower raises only the practical throughput of the linked cold/war
 | Revenue | No direct income. It lets the venue use its water/recovery capacity without an implausible guest route. |
 | Cost | Low-to-medium one-off build cost; small cleaning cost only if the final operations model supports it. |
 | Route/visual | Approach, enter threshold, short hidden change transition, exit in correct apparel state and continue. |
+
+## Approved Upgrade Layers: Reception Shop
+
+These are upgrades of an already-built Reception Shop, not independent facilities. Their primary effect is always stronger, more appropriate shop trade. Any recovery or identity benefit is secondary and must not become a generic revenue multiplier.
+
+### Hydration Counter
+
+| Field | Definition |
+| --- | --- |
+| Parent facility | Reception Shop |
+| Primary effect | Expands drink range and raises shop conversion for recovery- and convenience-motivated guests. |
+| Secondary effect | A brief water stop can complete part of an eligible post-Gus recovery journey. It does not replace an Outdoor Shower, Cold Plunge or Rest Deck. |
+| Visual change | A chilled counter, refill point and readable drinks display added within the existing shop field. |
+| Route/effect | Reuses the shop-stop anchor with a short refill/purchase hold; no new map route or character animation family. |
+
+### Venue Goods Display
+
+| Field | Definition |
+| --- | --- |
+| Parent facility | Reception Shop |
+| Primary effect | Expands towel, robe and wellness-product trade, particularly for premium- and destination-motivated guests. |
+| Secondary effect | Enables venue-name merchandise once the later venue-identity gate is met; it provides a modest visible first-impression contribution, not a standalone appeal multiplier. |
+| Visual change | A fuller lit window/display with folded textiles and selected goods, integrated into the existing shop facade. |
+| Route/effect | Reuses the shop-stop anchor and existing purchase animation; branded stock needs only a display-state variant, not a new character animation. |
+
+## Approved Upgrade Layers: Outdoor Shower
+
+These upgrades remain part of one Outdoor Shower facility. They first improve its recovery-route function; any Gus-language support is secondary.
+
+### Twin Rinse Rail
+
+| Field | Definition |
+| --- | --- |
+| Parent facility | Outdoor Shower |
+| Primary effect | Adds one usable rinse bay and increases linked recovery-route throughput. |
+| Secondary effect | Reduces shower-related queue pressure before a compatible Cold Plunge or natural-water route. |
+| Visual change | A second shower head and drain detail added to the existing shower field. |
+| Route/effect | A second authored rinse anchor using the shared guest rinse loop and `shower-water` effect. |
+
+### Cold Cascade Bucket
+
+| Field | Definition |
+| --- | --- |
+| Parent facility | Outdoor Shower |
+| Primary effect | Strengthens the shower's cold-recovery moment for programs with `Fresh`, `Ritual` or energetic contrast. It does not add a second recovery facility. |
+| Secondary effect | Provides specific Venue Fit evidence for compatible Gus delivery, without raising generic admission demand or shower throughput. |
+| Visual change | A timber tipping bucket, pull chain and splash apron fitted above the existing shower field. |
+| Route/effect | Requires a dedicated `cascade-rinse` guest action: reach/pull, brief bucket-tip splash, recovery pose and exit. The bucket-tip sprite and a stronger reusable splash effect are required production assets. |
+
+## Approved Upgrade Layers: Cold Plunge
+
+The exact finished basin and deck materials remain deferred until the first location + building offer is selected. Their capacity, route and animation requirements are locked now.
+
+### Expanded Plunge Basin
+
+| Field | Definition |
+| --- | --- |
+| Parent facility | Cold Plunge |
+| Primary effect | Increases the number of usable plunge anchors and reduces linked cold-recovery queue pressure. |
+| Secondary effect | Makes a higher-volume cold-finish Gus operationally credible; it does not raise sauna seats. |
+| Visual requirement | A visibly larger basin variant with extra entry point(s), cold-surface loop and separate entry/exit splash anchors. |
+| Route/effect | Reuses shared plunge entry/exit actions at additional anchors; no unique character-body animation is needed. |
+
+### Ritual Entry Deck
+
+| Field | Definition |
+| --- | --- |
+| Parent facility | Cold Plunge |
+| Primary effect | Improves the plunge approach, exit and short recovery hold around the existing facility. |
+| Secondary effect | Supplies clear `Fresh`/`Ritual` Venue Fit evidence for compatible Gus programs; it is not a separate rest-deck facility. |
+| Visual requirement | A compact entry platform with handrail, hooks and a sit/dry edge wrapped around the existing plunge field. |
+| Route/effect | Adds short sit/dry anchors, reusing the shared sit/stand and towel-prop actions. |
+
+## Approved Upgrade Layers: Outdoor Gus Sauna
+
+`Outdoor Gus Sauna` is a small enclosed sauna or pavilion placed outdoors. Guests and the Master enter it for the actual Gus; exterior art communicates capacity and activity through its building silhouette, door, steam and preparation sequence rather than showing the interior.
+
+### Tiered Interior Benches
+
+| Field | Definition |
+| --- | --- |
+| Parent facility | Outdoor Gus Sauna |
+| Primary effect | Increases that sauna's dedicated Gus seats. |
+| Secondary effect | Supports higher-volume shared programs, but does not replace recovery capacity, Master availability or a suitable program. |
+| Visual requirement | A visibly wider/taller pavilion variant with changed roofline, window/door treatment and stronger roof/chimney steam. |
+| Route/effect | More guests use the same exterior door transition before a session; exterior steam and arrival density communicate the larger interior. No interior cutaway is produced. |
+
+### Master Ritual Station
+
+| Field | Definition |
+| --- | --- |
+| Parent facility | Outdoor Gus Sauna |
+| Primary effect | Improves outdoor-Gus delivery readiness for programs that use several rounds or deliberate tools. |
+| Secondary effect | Provides visible program identity and narrow execution support only for the outdoor facility; it is not a universal Master-stat bonus. |
+| Visual requirement | A compact covered preparation station beside the sauna entry, with storage for bucket, ice, herbs and compatible tool props. |
+| Route/effect | Requires a Master `approach -> prepare at station -> enter sauna` sequence. Tool overlays are selected from the scheduled program; timed roof/chimney steam begins after the Master enters. |
+
+## Approved Upgrade Layers: Program Sauna
+
+Program Sauna upgrades improve only the dedicated indoor Gus room. Exterior-only presentation uses the enlarged building volume, entrance transition and timed steam rather than a room cutaway.
+
+### Bench Gallery
+
+| Field | Definition |
+| --- | --- |
+| Parent facility | Program Sauna |
+| Primary effect | Increases dedicated Program Sauna Gus seats. |
+| Secondary effect | Supports larger scheduled sessions, but does not supply demand, a Master or recovery capacity. |
+| Visual requirement | An enlarged room volume with modified roofline, additional door/window treatment and stronger timed steam. |
+| Route/effect | More guests use the existing program-door transition; denser arrival/exit and steam communicate capacity without showing indoor benches. |
+
+### Heat & Vent Stack
+
+| Field | Definition |
+| --- | --- |
+| Parent facility | Program Sauna |
+| Primary effect | Reduces Program Sauna reset time between Gus sessions, increasing feasible session frequency only when Master availability and opening hours also support it. |
+| Secondary effect | Makes longer/higher-intensity program scheduling more reliable in this room; it is not a general venue efficiency bonus. |
+| Visual requirement | A distinct larger chimney and vent assembly attached to the Program Sauna volume. |
+| Route/effect | Uses a stronger, timed post-session steam/release effect. No guest-body animation beyond the existing program entry/exit transitions. |
+
+## Approved Upgrade Layers: Terrace / Recovery Deck
+
+These upgrades improve the existing rest facility. They do not become a second shop, cold facility or generic appeal source.
+
+### Recovery Loungers
+
+| Field | Definition |
+| --- | --- |
+| Parent facility | Terrace / Recovery Deck |
+| Primary effect | Adds explicit recovery-rest capacity after Gus. |
+| Secondary effect | Gives slower `Calm` and recovery-oriented visits a stronger complete journey, without raising sauna or program seats. |
+| Visual requirement | Two to four visible loungers integrated into the existing deck field. |
+| Route/effect | Requires the reusable `lounge-recline-rise` guest action: settle, calm recline idle and rise. |
+
+### Sheltered Heat Bench
+
+| Field | Definition |
+| --- | --- |
+| Parent facility | Terrace / Recovery Deck |
+| Primary effect | Improves the quality of existing seated recovery space through a fixed bench, wind screen and restrained warm-light/heat detail. |
+| Secondary effect | Supplies clear `Calm`/`Warm` Venue Fit evidence for a compatible recovery program; it does not add a weather-management system or generic demand bonus. |
+| Visual requirement | A visibly changed bench zone with a screen and evening warm-light state within the original terrace field. |
+| Route/effect | Adds dedicated seating anchors using the shared `bench-sit-stand` action and `light-warm` effect. |
+
+## Approved Upgrade Layers: Base Sauna
+
+These upgrades belong to the venue's ordinary existing sauna function, not to the dedicated Program Sauna or Outdoor Gus Sauna. The final building material is derived from the chosen base, while capacity and heat rules remain consistent.
+
+### Expanded Sauna Chamber
+
+| Field | Definition |
+| --- | --- |
+| Parent facility | Base Sauna |
+| Primary effect | Increases ordinary sauna capacity. |
+| Secondary effect | Supports higher overall visit throughput, but does not independently create more dedicated Gus sessions. |
+| Visual requirement | An attached or widened sauna volume appropriate to the base building, with extra door/window treatment and a chimney/roof change. |
+| Route/effect | Adds exterior door-transition density and shared chimney-steam anchors. No interior cutaway or new guest-body action is required. |
+
+### Stone Stove Refit
+
+| Field | Definition |
+| --- | --- |
+| Parent facility | Base Sauna |
+| Primary effect | Makes higher-heat and longer Gus delivery more reliable in the ordinary sauna room. It adds no seats. |
+| Secondary effect | Provides narrow physical readiness evidence for programs that actually use the supported heat profile; it is not a venue-wide quality multiplier. |
+| Visual requirement | A visibly upgraded chimney/vent or stove expression on the existing sauna volume, adapted to the selected building material. |
+| Route/effect | Uses a fuller timed chimney-steam/release effect during an eligible session. Existing door transitions remain sufficient. |

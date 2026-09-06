@@ -67,8 +67,28 @@ Files:
   - Canal location reference: exterior composition, compatible upgrade anchors, guest routes and asset order.
 - `location-scene-layouts-v0.1.md`
   - Fixed exterior layouts for all ten locations, including route, building and upgrade-field rules.
+- `venue-placement-contract-v0.1.md`
+  - Reusable placement-profile system: maximum building envelopes, local upgrade slots and protected location fields that allow many legal venue combinations without hand-painting every offer.
+- `building-envelope-estimates-v0.1.md`
+  - Provisional tile and pixel budgets for all 13 building bases, their internal upgrade slots and the placeholder-validation rules before final art.
+- `location-envelope-estimates-v0.1.md`
+  - Provisional world sizes and reserved full-upgrade space for all ten locations before their reusable building-placement profiles are drawn.
+- `location-placement-profiles-v0.1.md`
+  - Geometry-only all-location review: all 36 legal building placement profiles, protected geography and fixed location-upgrade fields, with a linked coloured-box board for visual review.
+- `location-profile-layout-production-v0.1.md`
+  - Production gate for all 36 profiles: each needs an explicit location-and-building composition before final assets are drawn.
+- `location-profile-composition-directions-v0.1.md`
+  - The approved visual direction for each legal profile, used to turn the board's planning coordinates into varied final site compositions.
+- `location-upgrade-review-v0.1.md`
+  - Owner-review inventory of every location-owned field, explicitly separated from later building-base upgrades.
+- `location-upgrade-proposals-v0.1.md`
+  - Detailed all-location proposal sheet: Level 1-4 paths, gameplay effects, rough exterior treatment and required guest/effect activity.
 - `visual-production-manifest-v0.1.md`
   - Asset-production order, first playable vertical slice and animation staging.
+- `sprite-production-master-manifest-v0.1.md`
+  - Complete execution checklist for character sheets, world effects, all approved location fields, building modules and the independent-layer rules that let every legal venue composition render safely.
+- `asset-production-checklist-generated.md`
+  - **Generated, do not edit.** Every runtime PNG with its exact native canvas, frame layout and pivot, derived from `src/content/artContract.ts` and `src/content/spatialEnvelopes.ts`. Regenerate with `pnpm art:spec`.
 - `canal-workshop-production-spec-v0.1.md`
   - Fixed map, module fields, guest routes, anchors and art deliverables for the first playable venue.
 - `canal-workshop-balance-reference-v0.1.md`
@@ -139,6 +159,8 @@ Files:
   - One balanced content seed for each locked building base, including market direction, progression band and review requirements.
 - `character-animation-contract-v0.1.md`
   - Complete guest, Master, Host and Technician action inventory, reusable sprite loops and location/asset route requirements.
+- `sprite-route-runtime-contract-v0.1.md`
+  - Final renderer contract for eight-direction movement, doorway entry/exit, foreground occlusion and authored venue route graphs.
 - `guest-sprite-production-brief-v0.1.md`
   - Ready-to-execute guest sprite brief: locked scale, first-pass scope, variation-matrix layer breakdown and a generation-ready prompt.
   - The actual mixing/distribution logic for that variation matrix (which combination a guest gets, and why it looks varied rather than patterned) is implemented and tested in `src/content/guestAppearance.ts` - not just specified in prose. Not yet wired into guest state/saves; there is no sprite to consume it yet.

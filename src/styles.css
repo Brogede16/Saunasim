@@ -147,8 +147,8 @@ button, input { font: inherit; }
 .control-dock { font-size: var(--ui-text-body); }
 .control-dock :is(button, input, select) { min-height: var(--ui-touch-target); font-size: var(--ui-text-small); line-height: 1.2; }
 .control-dock input[type="range"] { min-height: var(--ui-touch-target); }
-.control-dock :is(header, label, small, .eyebrow, .ledger-breakdown, .schedule-note, .program-result, .shop-result) { font-size: var(--ui-text-small); line-height: 1.3; }
-.control-dock small, .eyebrow, .venue-nav button, .week-report .ledger-breakdown, .guest-row :is(small, em), .program-grid label, .aroma-round strong, .repertoire-action, .shop-result { color: var(--ui-muted); }
+.control-dock :is(header, label, small, .eyebrow, .ledger-breakdown, .schedule-note, .recovery-preview-note, .program-result, .shop-result) { font-size: var(--ui-text-small); line-height: 1.3; }
+.control-dock small, .eyebrow, .venue-nav button, .week-report .ledger-breakdown, .guest-row :is(small, em), .program-grid label, .aroma-round strong, .repertoire-action, .shop-result, .recovery-preview-note { color: var(--ui-muted); }
 .control-dock button:disabled, .control-dock :is(input, select):disabled { color: var(--ui-disabled); background: var(--ui-disabled-surface); border-color: #94a19c; }
 .venue-nav { gap: 6px; padding-bottom: 6px; }
 .venue-nav button { min-height: var(--ui-touch-target); padding: 7px 10px; }

@@ -114,7 +114,7 @@ Urban Lot owns these site modules:
 6. Covered Recovery Pergola.
 7. Outdoor Urban Shower.
 8. Compact Built Cold Plunge.
-9. Outdoor Program Deck.
+9. Enclosed Outdoor Gus Sauna.
 10. Boundary Wall Treatment or Mural.
 
 ### Approved Urban Lot Revision
@@ -198,7 +198,7 @@ The following ten-item list is a **combined venue reference** for a compatible c
 9. Floating Recovery Platform: late, expensive compact water module; high appeal and recovery potential. This is not a floating sauna building.
 10. Roof Plunge or Roof Terrace: expensive upward expansion for constrained city plots.
 
-The player may choose among these based on space, cash and fit; they are not a mandatory sequence and are not all required in one venue. Of these, Canal itself owns only the canal terrace, canal shower/cooling point, bathing bridge and floating sauna platform. The remaining items are building modules or building modules requiring a canal-facing variant.
+The player may choose among these based on space, cash and fit; they are not a mandatory sequence and are not all required in one venue. The later Approved Canal Location Revision below supersedes this early combined list: Canal itself owns only its quay/water fields, while entrance, facade, sauna and roof additions remain building modules or building modules requiring a canal-facing variant. Floating Sauna is exclusive to Water Plot.
 
 ### Approved Canal Location Revision
 
@@ -207,7 +207,6 @@ Canal owns only its water, quay and promenade fields. The compatible building ow
 1. Narrow Canal Terrace on an Authored Quay Field: recovery seating and activity anchors.
 2. Canal Shower/Cooling Point: a visible rinse route on its own terrace/quay field.
 3. Canal Bathing Bridge: primary full water route with descent, entry, swim/idle, exit and winter state where appropriate.
-4. Small Canal Descent with Broad Sitting Edges: a second, independent water-entry field that works without the bathing bridge.
 5. Low Quay-Light Line along an Existing Promenade Field: evening wayfinding and water-reflection effects.
 6. Canal Planting Beds: robust grasses and plants on existing edge fields without obscuring the quay.
 
@@ -235,7 +234,7 @@ Harbour supports a larger, more industrial waterfront path than Canal. Its compa
 Harbour owns only fixed quay, basin and promenade fields. Water features appear only on base variants with a calm, eligible bathing basin.
 
 1. Quay Terrace: robust recovery/social space on an authored quay field.
-2. Quay Aufguss Stage with Fixed Wind Screens: a location-owned exterior program field that compatible buildings may operate.
+2. Enclosed Quay Outdoor Gus Sauna with Fixed Wind Screens: a location-owned exterior sauna field that compatible buildings may operate.
 3. Harbour Steps: a complete water-entry route only at eligible bathing basins.
 4. Harbour Shower Row: multiple independent outdoor-shower fields on a defined quay area.
 5. Low Quay Lantern Line: authored evening-light and reflection layer.
@@ -252,7 +251,7 @@ Industrial District has no natural-water route. Every facility uses a separate a
 2. Large Shared Program Yard on an Authored Open Yard Field.
 3. Outdoor Shower Row beneath a Steel Canopy.
 4. Long Constructed Cold Basin in Concrete/Steel.
-5. Sunken Warm Spa Pool in the Industrial Yard, only on large base variants.
+5. Sunken Warm Spa Pool in a fixed authored Industrial yard field.
 6. Long Recovery Canopy with Benches and Wind Screens.
 7. Industrial Greenery Fields on Existing Walls and Yard Edges.
 8. Low Evening Light along Walkways, Gate and Basin Edges.
@@ -297,7 +296,7 @@ Coast base scenes have a usable coastal path from the start. The purchasable Eve
 4. Coastal Shower Row under a Low Timber Roof.
 5. Wind/Changing Shelter.
 6. Cliff/Rock Sitting Niche.
-7. Outdoor Program Deck behind Fixed Wind Screens.
+7. Enclosed Outdoor Gus Sauna behind Fixed Wind Screens.
 8. Low Coastal Lantern Line.
 9. Rock/Stone-Integrated Warm Spa Pool on a Fixed, Sheltered Terrace Field.
 10. Low Stone/Timber Wind Wall around an Existing Sitting Field.
@@ -317,7 +316,7 @@ Beach base scenes include a usable boardwalk from the beginning. The purchasable
 4. Changing/Wind Shelter.
 5. Sun and Recovery Zone.
 6. Dune Sitting Niches.
-7. Outdoor Program Deck.
+7. Enclosed Outdoor Gus Sauna.
 8. Floating Platform only in an Authored Calm Beach Cove with Short Fixed Access.
 9. Evening Beach Light Layer.
 10. Freestanding Warm Spa Pool on a Fixed Sheltered Beach Field behind the Dune.
@@ -335,14 +334,15 @@ Rural Plot base scenes include an arrival route. The purchasable Nature/Ritual P
 2. Planting and Living Windbreak Fields.
 3. Outdoor Shower Field and Long Shower Row under Timber Eave.
 4. Constructed Cold Plunge.
-5. Outdoor Program Field.
+5. Enclosed Outdoor Gus Sauna.
 6. Fire Circle.
 7. Covered Outdoor Recovery Area.
 8. Sunken Warm Spa Pool on a Fixed Garden/Terrace Field.
 9. Small Orchard Recovery Zone with Long Benches and Lounge Chairs.
 10. Open Barn/Field-Edge Program Yard on an Authored Field.
-11. Stone-Edged Spring/Cold-Water Pocket only on rare base variants with a visibly present spring or stream.
-12. Rural Planting Fields with Fruit Trees, Tall Grasses and Wildflowers on Existing Edges.
+11. Rural Planting Fields with Fruit Trees, Tall Grasses and Wildflowers on Existing Edges.
+
+Rural Plot is one fixed location family. It has no optional spring, stream or natural-water subvariant; its cold-recovery routes are constructed facilities only.
 
 ### Approved Water Plot Location Set
 
@@ -355,7 +355,7 @@ Water Plot starts with its small shore landing, fixed gangway, safe bathing zone
 5. Small Shore Changing Cabin at the Landing.
 6. Shore Shower at the Gangway Root.
 7. Floating Fire Bowl with Sitting Edges on a Separate Authored Pontoon Field.
-8. Outdoor Aufguss Platform on the Pontoon: larger than the Floating Sauna's small inter-pod alcove, with its own guest/program anchors.
+8. Enclosed Pontoon Outdoor Gus Sauna: larger than the Floating Sauna's small inter-pod sauna, with its own guest/program anchors.
 
 The elevated shore outlook platform and evening buoy/underwater-light layer are removed.
 

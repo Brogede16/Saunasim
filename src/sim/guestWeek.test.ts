@@ -42,6 +42,16 @@ describe("Guest week sample", () => {
     expect(result.guestSnapshots.some((guest) => guest.visitPath.includes("shower") && guest.visitPath.includes("cold-plunge"))).toBe(true);
   });
 
+  it("always keeps at least one visible guest at an active outdoor Gus", () => {
+    const program = { ...starterProgram, intent: "Quiet Recovery" as const };
+    const input = { cash: 0, built: ["aufguss-yard"] as const, masterHired: true, admissionPrice: 24, activeProgram: program };
+    const report = { ...simulateCanalWeek(input), admissions: 70, specialSeats: 8 };
+
+    const result = simulateGuestWeek(input, report, 5, program);
+
+    expect(result.guestSnapshots.some((guest) => guest.currentStop === "outdoor-gus")).toBe(true);
+  });
+
   it("makes a degraded shower reduce real cold-recovery throughput", () => {
     const program = { ...starterProgram, recoveryFinish: "Cold Plunge" as const, requestedSessions: 1 };
     const healthyInput = { cash: 0, built: ["cold-plunge", "shower"] as const, masterHired: true, admissionPrice: 24, activeProgram: program };

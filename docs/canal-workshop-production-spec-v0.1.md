@@ -11,7 +11,7 @@ The scene is **Canal + Repair Workshop**, a compact first venue. The Canal Boath
 | Item | Decision |
 | --- | --- |
 | Native tile | `16 x 16 px` |
-| World size | `60 x 40 tiles` (`960 x 640 px`) |
+| World size | `72 x 52 tiles` (`1152 x 832 px`) for final production, as declared in `src/content/spatialEnvelopes.ts`. The current `960 x 640` (`60 x 40`) primitive prototype is a temporary layout study; expanding it to the production world must be additive so no authored anchor moves. |
 | Camera | Portrait-safe; default zoom frames the active venue, one step out shows street and canal context. |
 | Perspective | 3/4 top-down, aligned to the shared pixel-art production guide. |
 | Coordinate origin | Top-left tile is `0,0`. Every anchor uses tile coordinates. |
@@ -23,16 +23,16 @@ The map must be built as layers, not a single exported illustration. The world d
 
 | Zone | Tile area | Base state |
 | --- | --- | --- |
-| Street and arrival | `x: 0-8, y: 0-39` | Sidewalk, street edge, entry route, limited city ambience. No player-owned expansion. |
-| Workshop parcel | `x: 9-32, y: 8-31` | Brick workshop base, paved circulation, stable building-owned fields. |
-| Promenade | `x: 33-43, y: 4-36` | Complete walkable stone route from street side to every future field. |
-| Canal edge | `x: 44-47, y: 0-39` | Stone quay, railings and neutral expansion bays. |
-| Canal water | `x: 48-59, y: 0-39` | Water, reflections and distant opposite-bank context. |
-| Green/context edges | `x: 9-43, y: 0-7 and 32-39` | Trees, low planting, walls and quiet city context. Never blocks the main loop. |
+| Street and arrival | `x: 0-10, y: 0-49` | Sidewalk, street edge, entry route, limited city ambience. No player-owned expansion. |
+| Workshop parcel | `x: 11-42, y: 10-38` | Large brick workshop base, paved circulation and stable building-owned fields. |
+| Promenade | `x: 43-57, y: 4-45` | Complete walkable stone route from street side to every future field. |
+| Canal edge | `x: 58-61, y: 0-49` | Stone quay, railings and neutral expansion bays. |
+| Canal water | `x: 62-79, y: 0-49` | Water, reflections and distant opposite-bank context. |
+| Green/context edges | `x: 11-57, y: 0-9 and 39-49` | Trees, low planting, walls and quiet city context. Never blocks the main loop. |
 
 ## Building Base
 
-`repair-workshop-base-v01.png` sits on `x: 12-29, y: 12-27`.
+`repair-workshop-base-v01.png` sits on approximately `x: 13-34, y: 14-33`. It is a large, detailed landmark building. Its final transparent crop and exact integer placement come from `assets/production/canal/repair-workshop-base-v01.md`.
 
 Its visible base contains the original entrance, one loading port, one chimney, warm windows, a canal-side service wall and enough roof/yard structure that later fields look credible. The player starts with a basic operational sauna inside, but no visible shop, terrace, bath or event crowd.
 
@@ -40,22 +40,22 @@ Its visible base contains the original entrance, one loading port, one chimney, 
 
 | ID | Field tiles | Neutral base state | Purchased module family |
 | --- | --- | --- | --- |
-| `ws-arrival` | `12-17, 25-29` | Existing entrance apron and blank sign mount | Arrival sign / renovated entrance |
-| `ws-shop` | `12-17, 16-20` | Closed loading port | Reception/shop port |
-| `ws-capacity` | `18-29, 27-31` | Paved rear edge and service wall | Extra sauna volume |
-| `ws-program` | `18-29, 8-11` | Quiet roof/side facade field | Program sauna volume |
-| `ws-glass` | `27-32, 12-22` | Existing side facade | Glass door/facade section |
-| `ws-dome` | `18-25, 8-13` | Existing roof/port line | Glass dome recovery field |
-| `ws-gus-yard` | `30-36, 22-29` | Paved yard pocket with fixed boundary | Outdoor Aufguss field |
-| `ws-port-rest` | `30-36, 13-20` | Original sheltered port edge | Open-port recovery field |
-| `ws-shower` | `37-40, 23-28` | Service recess with drain | Copper rain shower |
-| `ws-cold` | `37-42, 29-34` | Paved recessed corner | Compact cold plunge |
-| `ws-warm` | `30-37, 30-37` | Retained courtyard slab | Workshop-courtyard wild bath |
-| `ws-water-wall` | `30-34, 4-10` | Existing courtyard wall | Industrial water wall |
-| `ws-greenery` | `9-12, 8-15` and `30-33, 8-12` | Narrow planting strips | Industrial greenery fields |
+| `ws-arrival` | `13-19, 28-34` | Existing entrance apron and blank sign mount | Arrival sign / renovated entrance |
+| `ws-shop` | visible frontage at `workshop-shop-frontage` | Existing service hatch/port | Reception/shop frontage overlay |
+| `ws-capacity` | `34-41, 21-31` | Side/rear service edge | Extra sauna volume |
+| `ws-program` | `35-47, 8-18` | Separate paved side plot | Program sauna volume |
+| `ws-glass` | visible side facade at `x: 28-34, y: 16-25` | Existing side wall | Glass door/facade section |
+| `ws-dome` | `20-31, 34-40` | Retained rear courtyard slab | Glass-dome recovery field |
+| `ws-gus-yard` | `43-52, 25-35` | Paved yard pocket with fixed boundary | Outdoor Aufguss field |
+| `ws-port-rest` | `43-52, 18-24` | Original sheltered port edge | Open-port recovery field |
+| `ws-shower` | `53-56, 25-31` | Service recess with drain | Copper rain shower |
+| `ws-cold` | `53-58, 32-38` | Paved recessed corner | Compact cold plunge |
+| `ws-warm` | `42-51, 36-44` | Retained courtyard slab | Workshop-courtyard wild bath |
+| `ws-water-wall` | `43-48, 9-16` | Existing courtyard wall | Industrial water wall |
+| `ws-greenery` | `11-13, 11-20` and `34-37, 12-17` | Narrow planting strips | Industrial greenery fields |
 | `ws-light` | facade/chimney anchors | Standard exterior lamps/windows | Restored oven/chimney and evening identity |
 
-All fields are independent. Shared boundaries are paving, wall or planted edging already present in the base scene.
+All fields are independent. Shared boundaries are paving, wall or planted edging already present in the base scene. No field is a roof activity: the roof remains part of the permanent building silhouette, except for a deliberately authored facade/roof material overlay that does not host guests.
 
 ## Canal-Owned Fields
 
@@ -145,4 +145,4 @@ These names are the required entries in `canal-workshop-01.scene.json`. Exact pi
 4. Add the guest and effect sheets, then run a route-only scene test.
 5. Add management UI only after the venue remains readable beneath it.
 
-The next production action is to create the **Canal base layout art brief** and then the first scale-board/sprite test. No further spatial design decisions are required before that work begins.
+The next production action is to redraw the approved Workshop source as a native-scale, layered base using `assets/production/canal/repair-workshop-base-v01.md`, then align the final `.scene.json` anchors to its real door and frontage. The existing primitive `src/content/canalWorkshopScene.ts` is not the final coordinate authority and must not be used to shrink the building or place activities on its roof.

@@ -33,10 +33,10 @@ describe("Canal balance scenario matrix", () => {
     // four feasible sessions leave spare beyond real programme demand, on top of Bench Refit.
     expect(frequent).toMatchObject({ feasibleSessions: 4, specialSeats: 32, specialCapacity: 44 });
     expect(capacityFirst.netResult).toBeLessThan(healthy.netResult);
-    // Includes the bounded walk-up top-up (2026-08-26) on top of the Outdoor Gus Yard's own
+    // Includes the bounded walk-up top-up (2026-08-26) on top of the Outdoor Gus Sauna's own
     // physical-fit demand boost.
     expect(socialYard).toMatchObject({ specialSeats: 27 });
-    expect(socialYard.venueDemandNote).toContain("Outdoor Gus Yard");
+    expect(socialYard.venueDemandNote).toContain("Outdoor Gus Sauna");
     expect(loan.netResult).toBe(healthy.netResult - 375);
   });
 });
