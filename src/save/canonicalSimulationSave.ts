@@ -27,9 +27,10 @@ const runtimeBlockSchema = z.object({
   openHours: z.number().nonnegative(),
   scheduledAufguss: z.number().int().nonnegative(),
   demandWeight: z.number().nonnegative(),
-  // Optional only for reading early v2 saves created before admission revenue became block-owned.
-  // Import normalises missing values from the saved world price before the runtime is resumed.
+  // Optional only for reading early v2 saves created before guest revenue became block-owned.
+  // Import normalises missing values from the saved world configuration before runtime resumes.
   admissionPrice: z.number().finite().nonnegative().optional(),
+  supplementPrice: z.number().finite().nonnegative().optional(),
   admissions: z.number().int().nonnegative(),
   specialSeats: z.number().int().nonnegative(),
   revenue: z.object({ admissions: z.number(), specialGus: z.number(), shop: z.number(), total: z.number() }),
@@ -93,6 +94,7 @@ export function importCanonicalSimulationSave(serialized: string): CanonicalCana
           plannedBlocks: parsed.data.operatingRuntime.plannedBlocks.map((block) => ({
             ...block,
             admissionPrice: block.admissionPrice ?? world.admissionPrice,
+            supplementPrice: block.supplementPrice ?? world.activeProgram.supplementPrice,
           })),
         } as OperatingWeekRuntime
       : undefined;
