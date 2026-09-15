@@ -83,7 +83,7 @@ export function buildCanalOperatingBlocks(
       const scheduledAufguss = operatingPlan.aufguss.scheduled.filter(
         (session) => session.dayIndex === dayIndex && session.startsAt >= startsAt && session.startsAt < endsAt,
       ).length;
-      const demandWeight = openHours * intentWeight(snapshot, daypart);
+      const demandWeight = openHours * intentWeight(snapshot, daypart.id);
       blocks.push({
         dayIndex,
         daypart: daypart.id,
