@@ -16,7 +16,7 @@ This is the required operating procedure for coding agents working on substantia
 8. Fix errors introduced by the change.
 9. Rebuild and rerun tests.
 10. Check for regressions in adjacent systems.
-11. Update documentation if contracts, architecture, save data or balance ownership changed.
+11. Update the repository documentation immediately when a meaningful decision, mechanic, conflict resolution, implementation status, migration rule, balance ownership rule, save contract or architectural boundary changes.
 12. Provide a concise changelog.
 
 ## Scope discipline
@@ -40,6 +40,27 @@ An agent should be able to answer:
 - Can it be tested headlessly?
 
 If those answers are unclear, inspect more repository context before coding.
+
+## Continuous repository memory
+
+Important project knowledge must not live only in chat.
+
+During substantial work, write repository updates as soon as they become meaningful rather than waiting for a final documentation pass. This includes:
+
+- newly approved or superseded product decisions;
+- mechanics and their downstream consequences;
+- source-of-truth conflict resolutions;
+- newly discovered implementation constraints or technical debt;
+- implementation-matrix status changes such as `SPECIFIED`, `PARTIAL` or `IMPLEMENTED`;
+- new or changed data/save contracts;
+- balance variables and which system owns them;
+- migration fixtures and compatibility rules;
+- tests that become canonical proof of behavior;
+- deliberately deferred work and why it remains deferred.
+
+Update the existing canonical file whenever one clearly owns the information. Create a new document only when the subject needs a distinct long-lived contract, review or decision record.
+
+Do not produce documentation churn for trivial code movement, formatting-only changes or facts already represented accurately elsewhere. The goal is a repo that another agent can understand without relying on conversation history.
 
 ## During native migration
 
@@ -86,7 +107,9 @@ Update documentation when changing:
 - asset dimensions/anchors;
 - major gameplay rules;
 - central balance variables;
-- build/test procedures.
+- build/test procedures;
+- implementation status of canonical mechanics;
+- decisions or clarifications that would otherwise exist only in conversation history.
 
 Do not update documents merely to make them sound newer. They must reflect actual behavior or explicitly labeled future design.
 
@@ -99,6 +122,7 @@ Each completed agent task should summarize:
 - Tests/build run
 - Save impact
 - Balance impact
+- Documentation/source-of-truth impact
 - Follow-up/TBD items
 
 ## Git policy
@@ -111,4 +135,4 @@ Each completed agent task should summarize:
 
 ## Definition of agent completion
 
-A task is complete only when the requested behavior exists, the project remains buildable, relevant tests pass or known exceptions are documented, and no new undocumented source-of-truth ambiguity has been introduced.
+A task is complete only when the requested behavior exists, the project remains buildable, relevant tests pass or known exceptions are documented, meaningful new project knowledge has been written to the appropriate repository source of truth, and no new undocumented source-of-truth ambiguity has been introduced.
