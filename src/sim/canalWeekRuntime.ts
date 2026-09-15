@@ -8,6 +8,7 @@ export type RuntimeOperatingBlock = CanalBlockEconomy & {
 
 export type OperatingWeekRuntime = {
   week: number;
+  plannedReport: WeekReport;
   plannedBlocks: RuntimeOperatingBlock[];
   settledBlockKeys: string[];
   accruedAdmissions: number;
@@ -21,9 +22,14 @@ export function operatingBlockKey(block: Pick<RuntimeOperatingBlock, "dayIndex" 
   return `${block.dayIndex}:${block.startsAt}:${block.endsAt}`;
 }
 
-export function emptyOperatingWeekRuntime(week: number, plannedBlocks: RuntimeOperatingBlock[]): OperatingWeekRuntime {
+export function emptyOperatingWeekRuntime(
+  week: number,
+  plannedReport: WeekReport,
+  plannedBlocks: RuntimeOperatingBlock[],
+): OperatingWeekRuntime {
   return {
     week,
+    plannedReport,
     plannedBlocks,
     settledBlockKeys: [],
     accruedAdmissions: 0,
