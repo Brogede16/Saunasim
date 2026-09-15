@@ -34,9 +34,9 @@
     "specialSeats": 14,
     "shopSales": 0,
     "revenue": 1778,
-    "operatingCosts": 740,
+    "operatingCosts": 725,
     "loanRepayment": 0,
-    "netResult": 1038,
+    "netResult": 1053,
     "feasibleSessions": 2,
     "staffCost": 5,
     "runtimeClearedAtBoundary": true
