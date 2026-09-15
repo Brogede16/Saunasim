@@ -13,6 +13,7 @@ export type OperatingWeekRuntime = {
   settledBlockKeys: string[];
   accruedAdmissions: number;
   accruedSpecialSeats: number;
+  accruedShopSales: number;
   accruedRevenueBreakdown: WeekReport["revenueBreakdown"];
   accruedCostBreakdown: WeekReport["costBreakdown"];
   accruedOperatingNet: number;
@@ -34,6 +35,7 @@ export function emptyOperatingWeekRuntime(
     settledBlockKeys: [],
     accruedAdmissions: 0,
     accruedSpecialSeats: 0,
+    accruedShopSales: 0,
     accruedRevenueBreakdown: { admissions: 0, specialGus: 0, shop: 0 },
     accruedCostBreakdown: {
       venueBase: 0,
@@ -60,6 +62,7 @@ export function settleOperatingBlock(runtime: OperatingWeekRuntime, block: Runti
     settledBlockKeys: [...runtime.settledBlockKeys, key],
     accruedAdmissions: runtime.accruedAdmissions + block.admissions,
     accruedSpecialSeats: runtime.accruedSpecialSeats + block.specialSeats,
+    accruedShopSales: runtime.accruedShopSales + block.shopSales,
     accruedRevenueBreakdown: {
       admissions: money(runtime.accruedRevenueBreakdown.admissions + block.revenue.admissions),
       specialGus: money(runtime.accruedRevenueBreakdown.specialGus + block.revenue.specialGus),
