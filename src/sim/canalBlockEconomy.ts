@@ -35,18 +35,21 @@ function allocateAmount<T>(items: T[], total: number, weightOf: (item: T) => num
 }
 
 /**
- * Places the proven weekly ledger into the operating blocks that caused it.
+ * Places operating economy into the blocks that caused it.
  *
- * This remains a conservation migration step: it does not invent a second balance model. Every
- * revenue/cost category sums exactly back to the canonical weekly ledger, but categories now have
- * a factual temporal owner so the next pass can replace allocation with native block formulas one
- * category at a time.
+ * When admissionPrice is supplied, ordinary admission revenue is now native block economy:
+ * block admissions x player price. Other categories still conserve the weekly reference while
+ * they await their own migration slices. Omitting admissionPrice preserves the old pure-allocation
+ * mode for migration tests.
  */
 export function allocateCanalBlockEconomy(
   blocks: CanalOperatingBlock[],
   ledger: Pick<WeekReport, "revenueBreakdown" | "costBreakdown">,
+  admissionPrice?: number,
 ): CanalBlockEconomy[] {
-  const admissionRevenue = allocateAmount(blocks, ledger.revenueBreakdown.admissions, (block) => block.admissions);
+  const admissionRevenue = admissionPrice === undefined
+    ? allocateAmount(blocks, ledger.revenueBreakdown.admissions, (block) => block.admissions)
+    : blocks.map((block) => Math.round(block.admissions * admissionPrice * 100) / 100);
   const specialRevenue = allocateAmount(blocks, ledger.revenueBreakdown.specialGus, (block) => block.specialSeats);
   const shopRevenue = allocateAmount(blocks, ledger.revenueBreakdown.shop, (block) => block.admissions);
 
