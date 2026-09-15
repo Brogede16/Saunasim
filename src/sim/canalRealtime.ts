@@ -15,6 +15,13 @@ import { planCanalOperations } from "./canalOperatingPlan";
 import { buildCanalOperatingBlocks } from "./canalOperatingBlocks";
 import { allocateCanalBlockEconomy } from "./canalBlockEconomy";
 import {
+  emptyOperatingWeekRuntime,
+  operatingBlockKey,
+  settleOperatingBlock,
+  type OperatingWeekRuntime,
+  type RuntimeOperatingBlock,
+} from "./canalWeekRuntime";
+import {
   advanceSimulation,
   type AdvanceSimulationResult,
   type SimulationAdapter,
@@ -23,7 +30,13 @@ import {
 } from "./simulationEngine";
 import { GAME_DAYS_PER_WEEK, REAL_MS_PER_GAME_WEEK, type CanonicalTimestamp } from "./canonicalTime";
 
-export type CanonicalCanalEnvelope = SimulationEnvelope<GameState>;
+export type CanonicalCanalEnvelope = SimulationEnvelope<GameState> & {
+  operatingRuntime?: OperatingWeekRuntime;
+};
+
+type RuntimeGameState = GameState & {
+  __operatingRuntime?: OperatingWeekRuntime;
+};
 
 export function createCanonicalCanalEnvelope(
   gameState: GameState = initialState,
@@ -38,67 +51,11 @@ export function createCanonicalCanalEnvelope(
   };
 }
 
-function nextRealtimeMilestone(world: GameState, after: CanonicalTimestamp, to: CanonicalTimestamp) {
-  const candidates = [
-    ...world.construction.map((project) => project.completesAt),
-    world.repairTask?.completesAt,
-    world.masterSearch?.completesAt,
-  ].filter((value): value is number => value !== undefined && value > after && value <= to);
-
-  return candidates.length ? Math.min(...candidates) : undefined;
+function money(value: number) {
+  return Math.round(value * 100) / 100;
 }
 
-function resolveRealtimeMilestones(world: GameState, at: CanonicalTimestamp) {
-  let next = world;
-  const events: SimulationEvent[] = [];
-
-  const completedConstruction = next.construction.filter((project) => project.completesAt <= at);
-  if (completedConstruction.length) {
-    const completedIds = completedConstruction.map((project) => project.moduleId);
-    next = {
-      ...next,
-      built: [...next.built, ...completedIds.filter((id) => !next.built.includes(id))],
-      construction: next.construction.filter((project) => project.completesAt > at),
-    };
-    events.push(...completedIds.map((id) => ({ at, type: "construction-completed", detail: id })));
-  }
-
-  if (next.repairTask && next.repairTask.completesAt <= at) {
-    const moduleId = next.repairTask.moduleId;
-    next = {
-      ...next,
-      condition: { ...next.condition, [moduleId]: 100 },
-      repairTask: undefined,
-    };
-    events.push({ at, type: "repair-completed", detail: moduleId });
-  }
-
-  if (next.masterSearch && next.masterSearch.completesAt <= at) {
-    const first = 1 + (next.masterSearchCount % (masterCandidates.length - 1));
-    const second = 1 + ((next.masterSearchCount + 1) % (masterCandidates.length - 1));
-    next = {
-      ...next,
-      masterCandidates: [masterCandidates[first], masterCandidates[second]],
-      masterSearch: undefined,
-      masterSearchCount: next.masterSearchCount + 1,
-    };
-    events.push({ at, type: "master-search-completed" });
-  }
-
-  return { world: next, events };
-}
-
-/**
- * Transitional canonical settlement for the existing Canal reference.
- *
- * Wave 2 now supplies concrete venue-staffing coverage and an automatic weekly Aufguss schedule
- * before calling the proven Canal balance model. The remaining admission/demand/shop/recovery
- * equations are still the weekly reference and will be decomposed into smaller operating blocks
- * incrementally rather than rewritten in one risky step.
- */
-export function settleLegacyCanalGameWeek(snapshot: GameState): GameState {
-  if (snapshot.financialDecisionPending) return snapshot;
-
+function calculateLegacyWeekReference(snapshot: GameState) {
   const operatingPlan = planCanalOperations(snapshot);
   const loanRepayment = snapshot.loans.reduce((total, loan) => total + loan.weeklyPayment, 0);
   const unavailable = maintainableModules.filter(
@@ -140,57 +97,152 @@ export function settleLegacyCanalGameWeek(snapshot: GameState): GameState {
       ? evaluateProgramDelivery(revealedProgram, snapshot.built, snapshot.master, ledger.specialOccupancy ?? 0)
       : undefined,
   };
-  const cash = snapshot.cash + report.netResult;
 
-  return {
-    ...snapshot,
-    cash,
-    week: snapshot.week + 1,
-    loans: snapshot.loans
-      .map((loan) => ({ ...loan, remainingWeeks: loan.remainingWeeks - 1 }))
-      .filter((loan) => loan.remainingWeeks > 0),
-    profitableWeeks: report.netResult > 0 ? snapshot.profitableWeeks + 1 : 0,
-    financialDecisionPending: cash < 0,
-    selectedGuestId: report.guestSnapshots?.[0]?.id,
-    activeProgram: revealedProgram,
-    condition: Object.fromEntries(
-      maintainableModules
-        .filter((id) => snapshot.built.includes(id))
-        .map((id) => [
-          id,
-          snapshot.repairTask?.moduleId === id
-            ? (snapshot.condition[id] ?? 100)
-            : Math.max(
-                0,
-                (snapshot.condition[id] ?? 100) -
-                  conditionWear(id, {
-                    specialSeats: ledger.specialSeats,
-                    recoveryDemand: ledger.recoveryDemand ?? 0,
-                  }),
-              ),
-        ]),
-    ),
-    lastReport: report,
-  };
+  return { operatingPlan, balanceInput, scheduledProgram, revealedProgram, report };
 }
 
-function operatingBlockEvents(before: GameState, after: GameState, weekBoundaryAt: CanonicalTimestamp): SimulationEvent[] {
-  const report = after.lastReport;
-  if (!report) return [];
-  const operatingPlan = planCanalOperations(before);
-  const blocks = allocateCanalBlockEconomy(
-    buildCanalOperatingBlocks(before, operatingPlan, report),
-    report,
-  );
-  const realMsPerGameDay = REAL_MS_PER_GAME_WEEK / GAME_DAYS_PER_WEEK;
-  const weekStart = weekBoundaryAt - REAL_MS_PER_GAME_WEEK;
+function allocateWear(total: number, blocks: RuntimeOperatingBlock[], weightOf: (block: RuntimeOperatingBlock) => number) {
+  if (blocks.length === 0 || total <= 0) return blocks.map(() => 0);
+  const weights = blocks.map((block) => Math.max(0, weightOf(block)));
+  const weightSum = weights.reduce((sum, value) => sum + value, 0);
+  if (weightSum <= 0) return blocks.map((_, index) => index === 0 ? total : 0);
+  const raw = weights.map((weight) => (total * weight) / weightSum);
+  const allocated = raw.map((value) => Math.round(value * 10000) / 10000);
+  const residual = Math.round((total - allocated.reduce((sum, value) => sum + value, 0)) * 10000) / 10000;
+  allocated[allocated.length - 1] = Math.round((allocated[allocated.length - 1] + residual) * 10000) / 10000;
+  return allocated;
+}
 
-  return blocks
-    .filter((block) => block.admissions > 0 || block.specialSeats > 0 || block.scheduledAufguss > 0)
-    .map((block) => {
-      const gameHoursFromWeekStart = block.dayIndex * 24 + block.startsAt;
-      const at = weekStart + (gameHoursFromWeekStart / 24) * realMsPerGameDay;
-      return {
+function createOperatingRuntime(snapshot: GameState): OperatingWeekRuntime {
+  const reference = calculateLegacyWeekReference(snapshot);
+  const baseBlocks = allocateCanalBlockEconomy(
+    buildCanalOperatingBlocks(snapshot, reference.operatingPlan, reference.report),
+    reference.report,
+  ).map((block) => ({ ...block, wear: {} })) as RuntimeOperatingBlock[];
+
+  for (const id of maintainableModules) {
+    if (!snapshot.built.includes(id) || snapshot.repairTask?.moduleId === id) continue;
+    const totalWear = conditionWear(id, {
+      specialSeats: reference.report.specialSeats,
+      recoveryDemand: reference.report.recoveryDemand ?? 0,
+    });
+    const allocated = allocateWear(
+      totalWear,
+      baseBlocks,
+      id === "program"
+        ? (block) => block.specialSeats
+        : (block) => block.specialSeats > 0 ? block.specialSeats : block.admissions,
+    );
+    baseBlocks.forEach((block, index) => {
+      if ((allocated[index] ?? 0) > 0) block.wear[id] = allocated[index];
+    });
+  }
+
+  return emptyOperatingWeekRuntime(snapshot.week, reference.report, baseBlocks);
+}
+
+function weekStartAt(startedAt: CanonicalTimestamp, gameWeek: number) {
+  return startedAt + (gameWeek - 1) * REAL_MS_PER_GAME_WEEK;
+}
+
+function operatingBlockSettlesAt(startedAt: CanonicalTimestamp, week: number, block: RuntimeOperatingBlock) {
+  const realMsPerGameDay = REAL_MS_PER_GAME_WEEK / GAME_DAYS_PER_WEEK;
+  const gameHoursFromWeekStart = block.dayIndex * 24 + block.endsAt;
+  return weekStartAt(startedAt, week) + (gameHoursFromWeekStart / 24) * realMsPerGameDay;
+}
+
+function runtimeFor(world: RuntimeGameState) {
+  if (world.__operatingRuntime?.week === world.week) return world.__operatingRuntime;
+  if (world.financialDecisionPending) return undefined;
+  return createOperatingRuntime(world);
+}
+
+function nextRealtimeMilestone(
+  world: RuntimeGameState,
+  after: CanonicalTimestamp,
+  to: CanonicalTimestamp,
+  startedAt: CanonicalTimestamp,
+) {
+  const runtime = runtimeFor(world);
+  const operatingCandidates = runtime?.plannedBlocks
+    .filter((block) => !runtime.settledBlockKeys.includes(operatingBlockKey(block)))
+    .map((block) => operatingBlockSettlesAt(startedAt, runtime.week, block)) ?? [];
+  const candidates = [
+    ...world.construction.map((project) => project.completesAt),
+    world.repairTask?.completesAt,
+    world.masterSearch?.completesAt,
+    ...operatingCandidates,
+  ].filter((value): value is number => value !== undefined && value > after && value <= to);
+
+  return candidates.length ? Math.min(...candidates) : undefined;
+}
+
+function applyBlockWear(world: RuntimeGameState, block: RuntimeOperatingBlock) {
+  const condition = { ...world.condition };
+  for (const id of maintainableModules) {
+    const wear = block.wear[id] ?? 0;
+    if (wear <= 0 || world.repairTask?.moduleId === id) continue;
+    condition[id] = Math.max(0, (condition[id] ?? 100) - wear);
+  }
+  return condition;
+}
+
+function resolveRealtimeMilestones(
+  world: RuntimeGameState,
+  at: CanonicalTimestamp,
+  startedAt: CanonicalTimestamp,
+) {
+  let next = world;
+  const events: SimulationEvent[] = [];
+
+  const completedConstruction = next.construction.filter((project) => project.completesAt <= at);
+  if (completedConstruction.length) {
+    const completedIds = completedConstruction.map((project) => project.moduleId);
+    next = {
+      ...next,
+      built: [...next.built, ...completedIds.filter((id) => !next.built.includes(id))],
+      construction: next.construction.filter((project) => project.completesAt > at),
+    };
+    events.push(...completedIds.map((id) => ({ at, type: "construction-completed", detail: id })));
+  }
+
+  if (next.repairTask && next.repairTask.completesAt <= at) {
+    const moduleId = next.repairTask.moduleId;
+    next = {
+      ...next,
+      condition: { ...next.condition, [moduleId]: 100 },
+      repairTask: undefined,
+    };
+    events.push({ at, type: "repair-completed", detail: moduleId });
+  }
+
+  if (next.masterSearch && next.masterSearch.completesAt <= at) {
+    const first = 1 + (next.masterSearchCount % (masterCandidates.length - 1));
+    const second = 1 + ((next.masterSearchCount + 1) % (masterCandidates.length - 1));
+    next = {
+      ...next,
+      masterCandidates: [masterCandidates[first], masterCandidates[second]],
+      masterSearch: undefined,
+      masterSearchCount: next.masterSearchCount + 1,
+    };
+    events.push({ at, type: "master-search-completed" });
+  }
+
+  const runtime = runtimeFor(next);
+  if (runtime) {
+    let updatedRuntime = runtime;
+    for (const block of runtime.plannedBlocks) {
+      const key = operatingBlockKey(block);
+      if (updatedRuntime.settledBlockKeys.includes(key)) continue;
+      const settlesAt = operatingBlockSettlesAt(startedAt, runtime.week, block);
+      if (settlesAt !== at) continue;
+      updatedRuntime = settleOperatingBlock(updatedRuntime, block);
+      next = {
+        ...next,
+        cash: money(next.cash + block.operatingNet),
+        condition: applyBlockWear(next, block),
+      };
+      events.push({
         at,
         type: "operating-block-settled",
         detail: JSON.stringify({
@@ -204,21 +256,67 @@ function operatingBlockEvents(before: GameState, after: GameState, weekBoundaryA
           revenue: block.revenue,
           costs: block.costs,
           operatingNet: block.operatingNet,
+          wear: block.wear,
         }),
-      } satisfies SimulationEvent;
-    });
+      });
+    }
+    next = { ...next, __operatingRuntime: updatedRuntime };
+  }
+
+  return { world: next, events };
 }
 
-const canalRealtimeAdapter: SimulationAdapter<GameState> = {
+/**
+ * Finalises the canonical game week after its operating blocks have already happened.
+ *
+ * Cash and facility wear from settled blocks are not applied twice here. The boundary now owns
+ * period-only consequences: loan repayment, report publication, programme reveal, profitability,
+ * debt ageing and financial-distress evaluation.
+ */
+export function settleLegacyCanalGameWeek(snapshot: RuntimeGameState): RuntimeGameState {
+  if (snapshot.financialDecisionPending) return snapshot;
+
+  const runtime = runtimeFor(snapshot);
+  if (!runtime) return snapshot;
+  const report = runtime.plannedReport;
+  const reference = calculateLegacyWeekReference(snapshot);
+  const remainingNet = money(report.netResult - runtime.accruedOperatingNet);
+  const cash = money(snapshot.cash + remainingNet);
+
+  return {
+    ...snapshot,
+    __operatingRuntime: undefined,
+    cash,
+    week: snapshot.week + 1,
+    loans: snapshot.loans
+      .map((loan) => ({ ...loan, remainingWeeks: loan.remainingWeeks - 1 }))
+      .filter((loan) => loan.remainingWeeks > 0),
+    profitableWeeks: report.netResult > 0 ? snapshot.profitableWeeks + 1 : 0,
+    financialDecisionPending: cash < 0,
+    selectedGuestId: report.guestSnapshots?.[0]?.id,
+    activeProgram: reference.revealedProgram,
+    lastReport: report,
+  };
+}
+
+const canalRealtimeAdapter: SimulationAdapter<RuntimeGameState> = {
   nextMilestoneAt: nextRealtimeMilestone,
   advanceInterval(world, context) {
-    // Canonical elapsed time and real-time milestones already flow through this boundary. Demand
-    // and the weekly ledger now have deterministic temporal ownership via operating blocks; the
-    // next migration step makes those block economics mutate state as the interval actually passes.
-    return { world, rng: context.rng };
+    // Do not freeze a week plan merely because wall time advanced. The plan is persisted only when
+    // the interval reaches an actual operating-block milestone; construction/repair completed
+    // before the first opening block can therefore affect the same game week.
+    const runtime = runtimeFor(world);
+    if (!runtime || world.__operatingRuntime) return { world, rng: context.rng };
+    const reachesOperatingBlock = runtime.plannedBlocks.some(
+      (block) => operatingBlockSettlesAt(context.startedAt, runtime.week, block) === context.to,
+    );
+    return {
+      world: reachesOperatingBlock ? { ...world, __operatingRuntime: runtime } : world,
+      rng: context.rng,
+    };
   },
-  resolveMilestonesAt(world, at, rng) {
-    const resolved = resolveRealtimeMilestones(world, at);
+  resolveMilestonesAt(world, at, rng, startedAt) {
+    const resolved = resolveRealtimeMilestones(world, at, startedAt);
     return { ...resolved, rng };
   },
   resolveGameWeekBoundary(world, at, rng) {
@@ -226,12 +324,7 @@ const canalRealtimeAdapter: SimulationAdapter<GameState> = {
     return {
       world: next,
       rng,
-      events: next === world
-        ? []
-        : [
-            ...operatingBlockEvents(world, next, at),
-            { at, type: "game-week-settled", detail: `week-${world.week}` },
-          ],
+      events: next === world ? [] : [{ at, type: "game-week-settled", detail: `week-${world.week}` }],
     };
   },
 };
@@ -239,8 +332,27 @@ const canalRealtimeAdapter: SimulationAdapter<GameState> = {
 export function advanceCanalSimulation(
   envelope: CanonicalCanalEnvelope,
   to: CanonicalTimestamp,
-): AdvanceSimulationResult<GameState> {
-  return advanceSimulation(envelope, to, canalRealtimeAdapter);
+): AdvanceSimulationResult<GameState> & { envelope: CanonicalCanalEnvelope } {
+  const internalWorld: RuntimeGameState = {
+    ...envelope.world,
+    __operatingRuntime: envelope.operatingRuntime,
+  };
+  const advanced = advanceSimulation(
+    { ...envelope, world: internalWorld },
+    to,
+    canalRealtimeAdapter,
+  );
+  const { __operatingRuntime, ...world } = advanced.envelope.world;
+  return {
+    events: advanced.events,
+    envelope: {
+      startedAt: advanced.envelope.startedAt,
+      lastSimulatedAt: advanced.envelope.lastSimulatedAt,
+      rng: advanced.envelope.rng,
+      world,
+      operatingRuntime: __operatingRuntime,
+    },
+  };
 }
 
 export function canonicalCanalStateEquals(a: CanonicalCanalEnvelope, b: CanonicalCanalEnvelope) {
