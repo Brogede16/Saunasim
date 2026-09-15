@@ -5,9 +5,9 @@ import { buildCanalOperatingBlocks } from "./canalOperatingBlocks";
 import { allocateCanalBlockEconomy, summarizeCanalBlockEconomy } from "./canalBlockEconomy";
 
 describe("Canal block economy", () => {
-  it("conserves every weekly revenue and cost category exactly", () => {
+  it("conserves every weekly revenue and cost category exactly in explicit legacy-allocation mode", () => {
     const plan = planCanalOperations(initialState);
-    const blocks = buildCanalOperatingBlocks(initialState, plan, { admissions: 30, specialSeats: 0 });
+    const blocks = buildCanalOperatingBlocks(initialState, plan, { admissions: 30, specialSeats: 0 }, "legacy-allocation");
     const ledger = {
       revenueBreakdown: { admissions: 720, specialGus: 0, shop: 0 },
       costBreakdown: {
@@ -20,12 +20,32 @@ describe("Canal block economy", () => {
       },
     };
 
-    const allocated = allocateCanalBlockEconomy(blocks, ledger);
+    const allocated = allocateCanalBlockEconomy(blocks, ledger, "legacy-allocation");
     const summary = summarizeCanalBlockEconomy(allocated);
 
     expect(summary.revenueBreakdown).toEqual(ledger.revenueBreakdown);
     expect(summary.costBreakdown).toEqual(ledger.costBreakdown);
     expect(summary.operatingNet).toBe(8);
+  });
+
+  it("calculates canonical admission revenue directly from block admissions and ticket price", () => {
+    const snapshot = { ...initialState, admissionPrice: 29 };
+    const plan = planCanalOperations(snapshot);
+    const blocks = buildCanalOperatingBlocks(snapshot, plan, { specialSeats: 0 });
+    const allocated = allocateCanalBlockEconomy(blocks, {
+      revenueBreakdown: { admissions: 999_999, specialGus: 0, shop: 0 },
+      costBreakdown: {
+        venueBase: 0,
+        staff: 0,
+        utilitiesAndCleaning: 0,
+        programMaterials: 0,
+        shopProcurement: 0,
+        facilities: 0,
+      },
+    });
+    const expected = blocks.reduce((total, block) => total + block.admissions * snapshot.admissionPrice, 0);
+    expect(summarizeCanalBlockEconomy(allocated).revenueBreakdown.admissions).toBe(expected);
+    expect(summarizeCanalBlockEconomy(allocated).revenueBreakdown.admissions).not.toBe(999_999);
   });
 
   it("places Gus revenue and material cost only in blocks with scheduled Gus when such blocks exist", () => {
@@ -45,7 +65,7 @@ describe("Canal block economy", () => {
       activeProgram: { ...initialState.activeProgram, requestedSessions: 3 },
     };
     const plan = planCanalOperations(snapshot);
-    const blocks = buildCanalOperatingBlocks(snapshot, plan, { admissions: 60, specialSeats: 18 });
+    const blocks = buildCanalOperatingBlocks(snapshot, plan, { specialSeats: 18 });
     const allocated = allocateCanalBlockEconomy(blocks, {
       revenueBreakdown: { admissions: 1_440, specialGus: 126, shop: 0 },
       costBreakdown: {
