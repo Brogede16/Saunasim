@@ -1,4 +1,5 @@
 import type { WeekReport } from "./canalBalance";
+import { calculateNativeCanalBlockAdmissions } from "./canalBlockDemand";
 import type { GameState } from "./game";
 import type { CanalOperatingPlan } from "./canalOperatingPlan";
 
@@ -59,16 +60,17 @@ function allocateIntegerTotal<T>(items: T[], total: number, weightOf: (item: T) 
 }
 
 /**
- * Turns the canonical weekly operating plan into concrete open day/daypart blocks.
+ * Turns the canonical operating plan into concrete open day/daypart blocks.
  *
- * This is deliberately an allocation layer first: admissions and Gus seats still sum exactly to
- * the proven weekly ledger. The next migration step can move revenue/cost/wear into these blocks
- * without changing the externally visible weekly result in the same commit.
+ * If an explicit ledger is supplied, admissions keep the old allocation behaviour for migration
+ * tests. Canonical runtime omits ledger.admissions and therefore computes ordinary arrivals from
+ * staffed opening time, price and daypart directly in the blocks. Gus seats are still temporarily
+ * allocated from the weekly reference until the next migration slice.
  */
 export function buildCanalOperatingBlocks(
   snapshot: GameState,
   operatingPlan: CanalOperatingPlan,
-  ledger: Pick<WeekReport, "admissions" | "specialSeats">,
+  ledger?: Partial<Pick<WeekReport, "admissions" | "specialSeats">>,
 ): CanalOperatingBlock[] {
   const schedule = operatingPlan.effectiveSchedule;
   const openDays = Math.max(0, Math.min(7, Math.trunc(schedule.openDays)));
@@ -98,10 +100,12 @@ export function buildCanalOperatingBlocks(
     }
   }
 
-  const admissionAllocations = allocateIntegerTotal(blocks, ledger.admissions, (block) => block.demandWeight);
+  const admissionAllocations = ledger?.admissions !== undefined
+    ? allocateIntegerTotal(blocks, ledger.admissions, (block) => block.demandWeight)
+    : calculateNativeCanalBlockAdmissions(snapshot, operatingPlan, blocks).map((block) => block.admissions);
   const specialAllocations = allocateIntegerTotal(
     blocks,
-    ledger.specialSeats,
+    ledger?.specialSeats ?? 0,
     (block) => block.scheduledAufguss > 0 ? block.scheduledAufguss * Math.max(0.25, block.demandWeight) : 0,
   );
 
