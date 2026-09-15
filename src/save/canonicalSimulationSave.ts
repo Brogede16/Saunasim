@@ -2,23 +2,77 @@ import { z } from "zod";
 import { importSave, exportSave } from "./savegame";
 import { advanceCanalSimulation, type CanonicalCanalEnvelope } from "../sim/canalRealtime";
 import { createRngState } from "../sim/deterministicRng";
+import type { OperatingWeekRuntime } from "../sim/canalWeekRuntime";
 
-export const CANONICAL_SIMULATION_SAVE_VERSION = 1;
+export const CANONICAL_SIMULATION_SAVE_VERSION = 2;
+
+const breakdownSchema = z.object({
+  admissions: z.number().finite(),
+  specialGus: z.number().finite(),
+  shop: z.number().finite(),
+});
+const costBreakdownSchema = z.object({
+  venueBase: z.number().finite(),
+  staff: z.number().finite(),
+  utilitiesAndCleaning: z.number().finite(),
+  programMaterials: z.number().finite(),
+  shopProcurement: z.number().finite(),
+  facilities: z.number().finite(),
+});
+const runtimeBlockSchema = z.object({
+  dayIndex: z.number().int().min(0).max(6),
+  daypart: z.enum(["night", "morning", "day", "evening"]),
+  startsAt: z.number().min(0).max(24),
+  endsAt: z.number().min(0).max(24),
+  openHours: z.number().nonnegative(),
+  scheduledAufguss: z.number().int().nonnegative(),
+  demandWeight: z.number().nonnegative(),
+  admissions: z.number().int().nonnegative(),
+  specialSeats: z.number().int().nonnegative(),
+  revenue: z.object({ admissions: z.number(), specialGus: z.number(), shop: z.number(), total: z.number() }),
+  costs: z.object({
+    venueBase: z.number(),
+    staff: z.number(),
+    utilitiesAndCleaning: z.number(),
+    programMaterials: z.number(),
+    shopProcurement: z.number(),
+    facilities: z.number(),
+    total: z.number(),
+  }),
+  operatingNet: z.number(),
+  wear: z.object({ program: z.number().nonnegative().optional(), shower: z.number().nonnegative().optional(), "cold-plunge": z.number().nonnegative().optional() }),
+});
+const operatingRuntimeSchema = z.object({
+  week: z.number().int().positive(),
+  // The canonical GameState serializer already validates the published WeekReport shape. During
+  // Wave 2 the runtime stores that exact report as an immutable period plan; validating the block
+  // and accumulator structure here is enough to reject malformed runtime state without duplicating
+  // the entire report schema in a second save module.
+  plannedReport: z.unknown(),
+  plannedBlocks: z.array(runtimeBlockSchema),
+  settledBlockKeys: z.array(z.string()),
+  accruedAdmissions: z.number().int().nonnegative(),
+  accruedSpecialSeats: z.number().int().nonnegative(),
+  accruedRevenueBreakdown: breakdownSchema,
+  accruedCostBreakdown: costBreakdownSchema,
+  accruedOperatingNet: z.number().finite(),
+});
 
 const envelopeSchema = z.object({
-  schemaVersion: z.literal(CANONICAL_SIMULATION_SAVE_VERSION),
+  schemaVersion: z.union([z.literal(1), z.literal(CANONICAL_SIMULATION_SAVE_VERSION)]),
   startedAt: z.number().finite(),
   lastSimulatedAt: z.number().finite(),
   rng: z.object({ seed: z.number().int().nonnegative(), state: z.number().int().nonnegative() }),
   legacyGameSave: z.string(),
+  operatingRuntime: operatingRuntimeSchema.optional(),
 });
 
 /**
- * Portable bridge format for Wave 1 and the future Swift parity suite.
+ * Portable bridge format for the realtime engine and future Swift parity suite.
  *
- * The nested legacy save intentionally reuses the existing validated GameState serializer while
- * canonical time/RNG live in an explicit outer envelope. This avoids silently changing IndexedDB
- * compatibility before the canonical engine is fully wired into the application runtime.
+ * Canonical v2 adds the in-progress operating-week runtime. Without it, saving after some blocks
+ * have settled and resuming later could replay revenue/cost/wear that already happened. Version 1
+ * remains readable and simply resumes with no in-progress block runtime, matching its old shape.
  */
 export function exportCanonicalSimulationSave(envelope: CanonicalCanalEnvelope) {
   return JSON.stringify(
@@ -28,6 +82,7 @@ export function exportCanonicalSimulationSave(envelope: CanonicalCanalEnvelope) 
       lastSimulatedAt: envelope.lastSimulatedAt,
       rng: envelope.rng,
       legacyGameSave: exportSave(envelope.world),
+      operatingRuntime: envelope.operatingRuntime,
     },
     null,
     2,
@@ -45,6 +100,7 @@ export function importCanonicalSimulationSave(serialized: string): CanonicalCana
       lastSimulatedAt: parsed.data.lastSimulatedAt,
       rng: parsed.data.rng,
       world,
+      operatingRuntime: parsed.data.operatingRuntime as OperatingWeekRuntime | undefined,
     };
   } catch {
     return undefined;
