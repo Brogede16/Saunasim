@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { REAL_MS_PER_GAME_WEEK } from "./canonicalTime";
 import { planCanalOperations } from "./canalOperatingPlan";
-import { settleLegacyCanalGameWeek } from "./canalRealtime";
-import { initialState, type MasterProfile } from "./game";
+import { advanceCanalSimulation, createCanonicalCanalEnvelope } from "./canalRealtime";
+import { initialState, type GameState, type MasterProfile } from "./game";
 
 const master: MasterProfile = {
   name: "Plan Master",
@@ -13,6 +14,14 @@ const master: MasterProfile = {
   equipment: [],
 };
 
+function runCanonicalWeek(state: GameState, seed = 100) {
+  const start = 1_000_000;
+  return advanceCanalSimulation(
+    createCanonicalCanalEnvelope(state, start, seed),
+    start + REAL_MS_PER_GAME_WEEK,
+  ).envelope.world;
+}
+
 describe("Canal operating plan integration", () => {
   it("uses actual scheduled Gus sessions as the feasible weekly count", () => {
     const state = {
@@ -22,7 +31,7 @@ describe("Canal operating plan integration", () => {
       activeProgram: { ...initialState.activeProgram, requestedSessions: 4 },
     };
     const plan = planCanalOperations(state);
-    const settled = settleLegacyCanalGameWeek(state);
+    const settled = runCanonicalWeek(state);
 
     expect(plan.aufguss.scheduled).toHaveLength(4);
     expect(settled.lastReport).toMatchObject({ requestedSessions: 4, feasibleSessions: 4 });
@@ -36,7 +45,7 @@ describe("Canal operating plan integration", () => {
       activeProgram: { ...initialState.activeProgram, requestedSessions: 2 },
     };
     const plan = planCanalOperations(state);
-    const settled = settleLegacyCanalGameWeek(state);
+    const settled = runCanonicalWeek(state);
 
     expect(plan.aufguss.masterWage).toBeGreaterThan(0);
     expect(plan.aufguss.masterWage).toBeLessThan(master.weeklyWage);
@@ -44,22 +53,22 @@ describe("Canal operating plan integration", () => {
   });
 
   it("turns uncovered 24-hour opening into lost operating time instead of free revenue", () => {
-    const unstaffed = {
+    const unstaffed: GameState = {
       ...initialState,
       schedule: { openDays: 7, opensAt: 0, closesAt: 24 },
       serviceHostCount: 0,
     };
-    const staffed = {
+    const staffed: GameState = {
       ...unstaffed,
-      built: ["shop" as const],
+      built: ["shop"],
       hostHired: true,
       serviceHostCount: 3,
     };
 
     const unstaffedPlan = planCanalOperations(unstaffed);
     const staffedPlan = planCanalOperations(staffed);
-    const unstaffedWeek = settleLegacyCanalGameWeek(unstaffed);
-    const staffedWeek = settleLegacyCanalGameWeek(staffed);
+    const unstaffedWeek = runCanonicalWeek(unstaffed, 101);
+    const staffedWeek = runCanonicalWeek(staffed, 102);
 
     expect(unstaffedPlan.staffing.uncoveredHostHours).toBe(118);
     expect(unstaffedPlan.effectiveSchedule.closesAt).toBeLessThan(24);
