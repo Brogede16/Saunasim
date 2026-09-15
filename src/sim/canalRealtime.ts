@@ -13,6 +13,7 @@ import { evaluateProgramDelivery } from "./programEvaluation";
 import { createRngState, type RngState } from "./deterministicRng";
 import { planCanalOperations } from "./canalOperatingPlan";
 import { buildCanalOperatingBlocks } from "./canalOperatingBlocks";
+import { allocateCanalBlockEconomy } from "./canalBlockEconomy";
 import {
   advanceSimulation,
   type AdvanceSimulationResult,
@@ -177,7 +178,10 @@ function operatingBlockEvents(before: GameState, after: GameState, weekBoundaryA
   const report = after.lastReport;
   if (!report) return [];
   const operatingPlan = planCanalOperations(before);
-  const blocks = buildCanalOperatingBlocks(before, operatingPlan, report);
+  const blocks = allocateCanalBlockEconomy(
+    buildCanalOperatingBlocks(before, operatingPlan, report),
+    report,
+  );
   const realMsPerGameDay = REAL_MS_PER_GAME_WEEK / GAME_DAYS_PER_WEEK;
   const weekStart = weekBoundaryAt - REAL_MS_PER_GAME_WEEK;
 
@@ -197,6 +201,9 @@ function operatingBlockEvents(before: GameState, after: GameState, weekBoundaryA
           admissions: block.admissions,
           specialSeats: block.specialSeats,
           scheduledAufguss: block.scheduledAufguss,
+          revenue: block.revenue,
+          costs: block.costs,
+          operatingNet: block.operatingNet,
         }),
       } satisfies SimulationEvent;
     });
@@ -206,8 +213,8 @@ const canalRealtimeAdapter: SimulationAdapter<GameState> = {
   nextMilestoneAt: nextRealtimeMilestone,
   advanceInterval(world, context) {
     // Canonical elapsed time and real-time milestones already flow through this boundary. Demand
-    // is now represented as deterministic day/daypart operating blocks at settlement; the next
-    // migration step moves each block's economic state transition into this interval boundary.
+    // and the weekly ledger now have deterministic temporal ownership via operating blocks; the
+    // next migration step makes those block economics mutate state as the interval actually passes.
     return { world, rng: context.rng };
   },
   resolveMilestonesAt(world, at, rng) {
