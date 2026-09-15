@@ -1,0 +1,67 @@
+import type { WeekReport } from "./canalBalance";
+import type { CanalBlockEconomy } from "./canalBlockEconomy";
+
+export type OperatingWeekRuntime = {
+  week: number;
+  plannedBlocks: CanalBlockEconomy[];
+  settledBlockKeys: string[];
+  accruedAdmissions: number;
+  accruedSpecialSeats: number;
+  accruedRevenueBreakdown: WeekReport["revenueBreakdown"];
+  accruedCostBreakdown: WeekReport["costBreakdown"];
+  accruedOperatingNet: number;
+};
+
+export function operatingBlockKey(block: Pick<CanalBlockEconomy, "dayIndex" | "startsAt" | "endsAt">) {
+  return `${block.dayIndex}:${block.startsAt}:${block.endsAt}`;
+}
+
+export function emptyOperatingWeekRuntime(week: number, plannedBlocks: CanalBlockEconomy[]): OperatingWeekRuntime {
+  return {
+    week,
+    plannedBlocks,
+    settledBlockKeys: [],
+    accruedAdmissions: 0,
+    accruedSpecialSeats: 0,
+    accruedRevenueBreakdown: { admissions: 0, specialGus: 0, shop: 0 },
+    accruedCostBreakdown: {
+      venueBase: 0,
+      staff: 0,
+      utilitiesAndCleaning: 0,
+      programMaterials: 0,
+      shopProcurement: 0,
+      facilities: 0,
+    },
+    accruedOperatingNet: 0,
+  };
+}
+
+function money(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+export function settleOperatingBlock(runtime: OperatingWeekRuntime, block: CanalBlockEconomy): OperatingWeekRuntime {
+  const key = operatingBlockKey(block);
+  if (runtime.settledBlockKeys.includes(key)) return runtime;
+
+  return {
+    ...runtime,
+    settledBlockKeys: [...runtime.settledBlockKeys, key],
+    accruedAdmissions: runtime.accruedAdmissions + block.admissions,
+    accruedSpecialSeats: runtime.accruedSpecialSeats + block.specialSeats,
+    accruedRevenueBreakdown: {
+      admissions: money(runtime.accruedRevenueBreakdown.admissions + block.revenue.admissions),
+      specialGus: money(runtime.accruedRevenueBreakdown.specialGus + block.revenue.specialGus),
+      shop: money(runtime.accruedRevenueBreakdown.shop + block.revenue.shop),
+    },
+    accruedCostBreakdown: {
+      venueBase: money(runtime.accruedCostBreakdown.venueBase + block.costs.venueBase),
+      staff: money(runtime.accruedCostBreakdown.staff + block.costs.staff),
+      utilitiesAndCleaning: money(runtime.accruedCostBreakdown.utilitiesAndCleaning + block.costs.utilitiesAndCleaning),
+      programMaterials: money(runtime.accruedCostBreakdown.programMaterials + block.costs.programMaterials),
+      shopProcurement: money(runtime.accruedCostBreakdown.shopProcurement + block.costs.shopProcurement),
+      facilities: money(runtime.accruedCostBreakdown.facilities + block.costs.facilities),
+    },
+    accruedOperatingNet: money(runtime.accruedOperatingNet + block.operatingNet),
+  };
+}
