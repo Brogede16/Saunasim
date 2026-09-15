@@ -1,5 +1,6 @@
 import type { WeekReport } from "./canalBalance";
 import { calculateNativeCanalBlockAdmissions, calculateNativeCanalBlockSpecialSeats } from "./canalBlockDemand";
+import { calculateCanalBlockShopOutcome } from "./canalBlockShop";
 import type { GameState } from "./game";
 import type { CanalOperatingPlan } from "./canalOperatingPlan";
 import { previewProgram } from "./program";
@@ -21,6 +22,9 @@ export type CanalOperatingBlock = {
   staffCost: number;
   admissions: number;
   specialSeats: number;
+  shopSales: number;
+  shopRevenue: number;
+  shopProcurement: number;
 };
 
 const DAYPARTS: Array<{ id: CanalDaypart; from: number; to: number }> = [
@@ -112,6 +116,9 @@ export function buildCanalOperatingBlocks(
         staffCost: 0,
         admissions: 0,
         specialSeats: 0,
+        shopSales: 0,
+        shopRevenue: 0,
+        shopProcurement: 0,
       });
     }
   }
@@ -129,10 +136,19 @@ export function buildCanalOperatingBlocks(
     ? allocateIntegerTotal(blocks, ledger.admissions, (block) => block.demandWeight)
     : calculateNativeCanalBlockAdmissions(snapshot, operatingPlan, blocks).map((block) => block.admissions);
 
-  const blocksWithAdmissions = blocks.map((block, index) => ({
-    ...block,
-    admissions: admissionAllocations[index] ?? 0,
-  }));
+  const blocksWithAdmissions = blocks.map((block, index) => {
+    const admissions = admissionAllocations[index] ?? 0;
+    const shop = admissionMode === "legacy-allocation"
+      ? { sales: 0, revenue: 0, procurement: 0 }
+      : calculateCanalBlockShopOutcome(snapshot, admissions);
+    return {
+      ...block,
+      admissions,
+      shopSales: shop.sales,
+      shopRevenue: shop.revenue,
+      shopProcurement: shop.procurement,
+    };
+  });
 
   const specialAllocations = admissionMode === "legacy-allocation" && ledger?.specialSeats !== undefined
     ? allocateIntegerTotal(
@@ -155,5 +171,8 @@ export function summarizeCanalOperatingBlocks(blocks: CanalOperatingBlock[]) {
     specialSeats: blocks.reduce((total, block) => total + block.specialSeats, 0),
     scheduledAufguss: blocks.reduce((total, block) => total + block.scheduledAufguss, 0),
     staffCost: Math.round(blocks.reduce((total, block) => total + block.staffCost, 0) * 100) / 100,
+    shopSales: blocks.reduce((total, block) => total + block.shopSales, 0),
+    shopRevenue: Math.round(blocks.reduce((total, block) => total + block.shopRevenue, 0) * 100) / 100,
+    shopProcurement: Math.round(blocks.reduce((total, block) => total + block.shopProcurement, 0) * 100) / 100,
   };
 }
