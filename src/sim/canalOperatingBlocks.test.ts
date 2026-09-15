@@ -30,7 +30,7 @@ describe("Canal operating blocks", () => {
     expect(blocks.filter((block) => block.scheduledAufguss === 0).every((block) => block.specialSeats === 0)).toBe(true);
   });
 
-  it("puts social/show demand later than quiet recovery for the same opening window", () => {
+  it("puts social/show demand later than quiet recovery for the same fully covered opening window", () => {
     const master = {
       name: "Test Master",
       style: "Traditional" as const,
@@ -44,6 +44,9 @@ describe("Canal operating blocks", () => {
       ...initialState,
       masterHired: true,
       master,
+      serviceHostCount: 1,
+      hostHired: true,
+      built: ["shop" as const],
       schedule: { openDays: 5, opensAt: 8, closesAt: 22 },
       activeProgram: { ...initialState.activeProgram, intent: "Social Energy" as const, requestedSessions: 3 },
     };
