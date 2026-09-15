@@ -52,8 +52,6 @@ The player-facing intent `desired sessions per game week` now produces concrete 
 6. replace the old aggregate staff-cost shortcut with actual assigned-hour wage cost;
 7. expose staffing/scheduling warnings as causal report text.
 
-`src/sim/canalRealtime.ts` uses this operating plan at canonical game-week settlement.
-
 ### Deterministic daypart operating blocks
 
 `src/sim/canalOperatingBlocks.ts` converts the canonical operating week into concrete open blocks by day and daypart (`night`, `morning`, `day`, `evening`).
@@ -65,8 +63,6 @@ The player-facing intent `desired sessions per game week` now produces concrete 
 - Gus seats can only be allocated to blocks containing an actual scheduled session;
 - block admissions and Gus seats sum exactly back to the proven weekly ledger while migration is in progress.
 
-`canalRealtime.ts` emits `operating-block-settled` events with canonical timestamps inside the game week. UI/rendering can consume factual `what happened when` events without owning simulation logic.
-
 ### Temporal block economy ownership
 
 `src/sim/canalBlockEconomy.ts` places the proven weekly revenue and operating-cost categories into the operating blocks that caused them.
@@ -77,10 +73,25 @@ The player-facing intent `desired sessions per game week` now produces concrete 
 - shop revenue/procurement follows visiting guests;
 - venue base, utilities and facilities follow operating hours;
 - staffing cost follows operating load and scheduled Gus work;
-- every category conserves the exact weekly ledger total, including rounding residuals;
-- each `operating-block-settled` event now includes its revenue, costs and operating net.
+- every category conserves the exact weekly ledger total, including rounding residuals.
 
-This is intentionally a conservation migration step rather than a competing balance model. The next pass can replace category allocation with native block formulas one category at a time while fixtures prove the weekly outcome stays correct.
+### Persistent in-progress operating week
+
+`src/sim/canalWeekRuntime.ts` and `src/sim/canalRealtime.ts` now make the blocks real simulation milestones rather than report-only annotations.
+
+- an operating block settles at its canonical block-end timestamp;
+- block operating net changes canonical cash immediately;
+- allocated facility wear changes condition immediately;
+- admissions, Gus seats, revenue categories and cost categories accumulate in persistent runtime state;
+- settled block IDs prevent the same business period from being applied twice;
+- `lastReport` is still published only at the game-week boundary;
+- loan repayment, debt ageing, profitability streak and financial-distress evaluation remain period-boundary consequences;
+- construction/repair/recruitment continue to share the same chronological milestone engine;
+- same-timestamp real-time work resolves before weekly settlement.
+
+`CanonicalCanalEnvelope` keeps the in-progress operating runtime outside the legacy browser `GameState`, so the old IndexedDB format does not silently become the native contract.
+
+`src/save/canonicalSimulationSave.ts` is now canonical save version 2 and persists the in-progress runtime. Version 1 remains readable. This prevents save/resume from replaying already-settled revenue, costs or wear.
 
 ## Tests added
 
@@ -106,25 +117,36 @@ Proves every revenue/cost category conserves the weekly ledger exactly and that 
 
 ### `canalOperatingEvents.test.ts`
 
-Proves operating blocks are emitted inside the correct canonical week, event totals match the report, and one-jump offline vs repeated online advancement still yields identical canonical world state.
+Proves:
+
+- operating blocks are emitted at canonical timestamps;
+- block totals match the weekly report;
+- cash and condition mutate before week settlement;
+- `lastReport` remains unpublished midweek;
+- one-jump offline vs repeated online advancement stays deterministic.
+
+### `canonicalSimulationSave.test.ts`
+
+Now also proves that a midweek canonical save round-trips the operating runtime and resumes to the same result as uninterrupted simulation, without replaying settled block economy or wear.
 
 ## Known transitional limits
 
 Do not mark the complete Wave 2 loop implemented yet.
 
-1. The block economy currently conserves and allocates the proven weekly ledger; it does not yet mutate cash incrementally as each block passes.
-2. Recovery pressure and facility wear are still finally calculated from the weekly aggregate rather than their specific operating blocks.
-3. Current Canal scheduling has one Master and one effective room lane. Multi-room/multi-Master concurrency is specified but belongs to the scalable scheduler pass.
-4. The old browser `gameStore.updateSchedule()` command still clamps player-entered schedules more aggressively than canonical mechanics allow. Headless mechanics can represent 24/7, but the browser control must be reconciled separately; do not copy its 16-hour cap into Swift.
-5. The legacy `simulateCanalWeek()` function still contains old schedule/staffing shortcuts internally. Canonical settlement overrides the relevant staffing/session consequences; those shortcuts should be deleted as native block formulas replace the aggregate.
-6. Staffing is currently the compact first-venue requirement set. Larger venues need additional simultaneous function requirements driven by authored facility/content data.
-7. Staff overview UI has not been built. The domain plan already exposes the data the UI must show.
+1. Block totals are still planned from the proven weekly Canal reference before being settled in time. The next major migration removes that reference dependency and computes block demand/economy natively.
+2. Once the first operating block of a game week has settled, its period plan is frozen for deterministic replay. A construction/repair/configuration change after that point does not yet re-plan only the remaining blocks. This is temporary and must be solved before the browser aggregate is retired.
+3. Wear is now applied in the blocks where use occurs, but its current per-block allocation conserves a weekly wear total rather than deriving wear independently from native block usage rules.
+4. Current Canal scheduling has one Master and one effective room lane. Multi-room/multi-Master concurrency is specified but belongs to the scalable scheduler pass.
+5. The old browser `gameStore.updateSchedule()` command still clamps player-entered schedules more aggressively than canonical mechanics allow. Headless mechanics can represent 24/7, but the browser control must be reconciled separately; do not copy its 16-hour cap into Swift.
+6. The legacy `simulateCanalWeek()` function still contains old schedule/staffing/demand shortcuts. It is now a planning oracle only and must disappear from canonical runtime before native parity is declared.
+7. Staffing is currently the compact first-venue requirement set. Larger venues need additional simultaneous function requirements driven by authored facility/content data.
+8. Staff overview UI has not been built. The domain plan already exposes the data the UI must show.
 
 ## Next executable slice
 
-1. make operating blocks actual simulation milestones/state transitions rather than settlement-only temporal ownership;
-2. mutate cash/revenue/cost accumulators as each block passes while preserving the weekly fixture result;
-3. move recovery pressure and facility wear to the blocks where use happens;
-4. build the weekly report by reducing completed blocks, not by first calling the aggregate ledger;
-5. remove the obsolete 16-hour browser schedule restriction;
-6. add portable Swift fixtures containing staffing plan, session plan and block outcomes.
+1. replace weekly-reference block allocation with native per-block demand and capacity formulas;
+2. re-plan only future blocks when construction, repair, staffing, opening hours, price or programme choices change midweek;
+3. reduce completed blocks into the weekly report rather than storing a precomputed weekly report;
+4. remove the obsolete 16-hour browser schedule restriction;
+5. add portable Swift fixtures containing midweek runtime, block outcomes and end-of-week parity;
+6. then migrate the same domain contracts into the Swift simulation core.
