@@ -27,6 +27,9 @@ const runtimeBlockSchema = z.object({
   openHours: z.number().nonnegative(),
   scheduledAufguss: z.number().int().nonnegative(),
   demandWeight: z.number().nonnegative(),
+  // Optional only for reading early v2 saves created before admission revenue became block-owned.
+  // Import normalises missing values from the saved world price before the runtime is resumed.
+  admissionPrice: z.number().finite().nonnegative().optional(),
   admissions: z.number().int().nonnegative(),
   specialSeats: z.number().int().nonnegative(),
   revenue: z.object({ admissions: z.number(), specialGus: z.number(), shop: z.number(), total: z.number() }),
@@ -44,10 +47,6 @@ const runtimeBlockSchema = z.object({
 });
 const operatingRuntimeSchema = z.object({
   week: z.number().int().positive(),
-  // The canonical GameState serializer already validates the published WeekReport shape. During
-  // Wave 2 the runtime stores that exact report as an immutable period plan; validating the block
-  // and accumulator structure here is enough to reject malformed runtime state without duplicating
-  // the entire report schema in a second save module.
   plannedReport: z.unknown(),
   plannedBlocks: z.array(runtimeBlockSchema),
   settledBlockKeys: z.array(z.string()),
@@ -67,13 +66,6 @@ const envelopeSchema = z.object({
   operatingRuntime: operatingRuntimeSchema.optional(),
 });
 
-/**
- * Portable bridge format for the realtime engine and future Swift parity suite.
- *
- * Canonical v2 adds the in-progress operating-week runtime. Without it, saving after some blocks
- * have settled and resuming later could replay revenue/cost/wear that already happened. Version 1
- * remains readable and simply resumes with no in-progress block runtime, matching its old shape.
- */
 export function exportCanonicalSimulationSave(envelope: CanonicalCanalEnvelope) {
   return JSON.stringify(
     {
@@ -95,12 +87,21 @@ export function importCanonicalSimulationSave(serialized: string): CanonicalCana
     if (!parsed.success || parsed.data.lastSimulatedAt < parsed.data.startedAt) return undefined;
     const world = importSave(parsed.data.legacyGameSave);
     if (!world) return undefined;
+    const operatingRuntime = parsed.data.operatingRuntime
+      ? {
+          ...parsed.data.operatingRuntime,
+          plannedBlocks: parsed.data.operatingRuntime.plannedBlocks.map((block) => ({
+            ...block,
+            admissionPrice: block.admissionPrice ?? world.admissionPrice,
+          })),
+        } as OperatingWeekRuntime
+      : undefined;
     return {
       startedAt: parsed.data.startedAt,
       lastSimulatedAt: parsed.data.lastSimulatedAt,
       rng: parsed.data.rng,
       world,
-      operatingRuntime: parsed.data.operatingRuntime as OperatingWeekRuntime | undefined,
+      operatingRuntime,
     };
   } catch {
     return undefined;
