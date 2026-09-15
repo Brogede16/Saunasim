@@ -120,19 +120,21 @@ function createOperatingRuntime(snapshot: GameState): OperatingWeekRuntime {
     buildCanalOperatingBlocks(snapshot, reference.operatingPlan, reference.report),
     reference.report,
   ).map((block) => ({ ...block, wear: {} })) as RuntimeOperatingBlock[];
+  const nativeSpecialSeats = baseBlocks.reduce((total, block) => total + block.specialSeats, 0);
+  const nativeRecoveryDemand = baseBlocks.reduce((total, block) => total + block.recoveryDemand, 0);
 
   for (const id of maintainableModules) {
     if (!snapshot.built.includes(id) || snapshot.repairTask?.moduleId === id) continue;
     const totalWear = conditionWear(id, {
-      specialSeats: reference.report.specialSeats,
-      recoveryDemand: reference.report.recoveryDemand ?? 0,
+      specialSeats: nativeSpecialSeats,
+      recoveryDemand: nativeRecoveryDemand,
     });
     const allocated = allocateWear(
       totalWear,
       baseBlocks,
       id === "program"
         ? (block) => block.specialSeats
-        : (block) => block.specialSeats > 0 ? block.specialSeats : block.admissions,
+        : (block) => block.recoveryDemand,
     );
     baseBlocks.forEach((block, index) => {
       if ((allocated[index] ?? 0) > 0) block.wear[id] = allocated[index];
@@ -254,6 +256,10 @@ function resolveRealtimeMilestones(
           admissions: block.admissions,
           specialSeats: block.specialSeats,
           scheduledAufguss: block.scheduledAufguss,
+          shopSales: block.shopSales,
+          recoveryDemand: block.recoveryDemand,
+          recoveryQueueLoss: block.recoveryQueueLoss,
+          recoveryBottleneck: block.recoveryBottleneck,
           revenue: block.revenue,
           costs: block.costs,
           operatingNet: block.operatingNet,
@@ -284,6 +290,9 @@ function sumCosts(breakdown: WeekReport["costBreakdown"]) {
 
 function reportFromCompletedBlocks(snapshot: RuntimeGameState, runtime: OperatingWeekRuntime): WeekReport {
   const periodCosts = calculateCanalPeriodCosts(snapshot);
+  const completedBlocks = runtime.plannedBlocks.filter((block) => runtime.settledBlockKeys.includes(operatingBlockKey(block)));
+  const recoveryDemand = completedBlocks.reduce((total, block) => total + block.recoveryDemand, 0);
+  const queueLoss = completedBlocks.reduce((total, block) => total + block.recoveryQueueLoss, 0);
   const costBreakdown: WeekReport["costBreakdown"] = {
     ...runtime.accruedCostBreakdown,
     venueBase: money(runtime.accruedCostBreakdown.venueBase + periodCosts.venueBase),
@@ -297,6 +306,10 @@ function reportFromCompletedBlocks(snapshot: RuntimeGameState, runtime: Operatin
     ...runtime.plannedReport,
     admissions: runtime.accruedAdmissions,
     specialSeats: runtime.accruedSpecialSeats,
+    shopSales: runtime.accruedShopSales,
+    recoveryDemand,
+    queueLoss,
+    bottleneck: queueLoss > 0 ? "Cold recovery" : undefined,
     revenueBreakdown: runtime.accruedRevenueBreakdown,
     costBreakdown,
     revenue,
@@ -310,10 +323,9 @@ function reportFromCompletedBlocks(snapshot: RuntimeGameState, runtime: Operatin
  * Finalises the canonical game week after its operating blocks have already happened.
  *
  * Cash and facility wear from settled blocks are not applied twice here. The financial report is
- * reduced from completed blocks plus explicit fixed period obligations. The old planned report only
- * supplies not-yet-migrated detail such as guest snapshots, queue notes and programme-review copy.
- * The boundary owns fixed obligations, loan repayment, report publication, programme reveal,
- * profitability, debt ageing and financial-distress evaluation.
+ * reduced from completed blocks plus explicit fixed period obligations. Shop sales and cold
+ * recovery pressure are also reduced from completed blocks. The old planned report now supplies
+ * only not-yet-migrated guest snapshots, narrative notes and programme-review copy.
  */
 export function settleLegacyCanalGameWeek(snapshot: RuntimeGameState): RuntimeGameState {
   if (snapshot.financialDecisionPending) return snapshot;
