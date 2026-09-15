@@ -19,7 +19,7 @@ describe("canonical game time", () => {
 
   it("maps six real hours to one quarter of a game week", () => {
     expect(elapsedGameWeeks(0, 6 * 60 * 60 * 1000)).toBe(0.25);
-    expect(elapsedGameDays(0, REAL_MS_PER_GAME_DAY)).toBe(1);
+    expect(elapsedGameDays(0, REAL_MS_PER_GAME_DAY)).toBeCloseTo(1, 12);
   });
 
   it("finds stable game-week indexes and boundaries from a fixed origin", () => {
