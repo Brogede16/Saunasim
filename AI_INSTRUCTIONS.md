@@ -2,10 +2,26 @@
 
 This file is the primary instruction contract for coding agents working on Sauna Empire.
 
+## Decision source of truth
+
+Before interpreting any product behavior, read the decision sources in this order:
+
+1. `PRODUCT_DECISIONS_2026-09-15.md` for the newest user-approved decisions made during Xcode preparation.
+2. `docs/decision-log.md` for the full inherited repository decision history.
+3. Current dedicated system contracts under `docs/` for detailed implementation rules.
+4. `GAME_DESIGN.md`, `ARCHITECTURE.md`, `SYSTEMS.md`, `DATA_MODEL.md`, `BALANCE.md`, `SAVE_SYSTEM.md`, `ASSET_SPEC.md`, `CONTENT_STUDIO.md` and migration/roadmap documents for the native preparation layer.
+5. Historical/audit/proposal documents only as supporting context.
+
+When these disagree, newer explicit user-approved decisions override older working assumptions. Do not silently invent a compromise.
+
+The `ai-xcode-preparation` branch inherits the full repository history from `main`; preparation documents are an additional consolidation/migration layer, not a replacement for the existing decision archive.
+
+Specific city names, venue names, market names or other generated content are not canonical merely because an agent wrote them. Only treat them as approved when a decision source explicitly marks them approved.
+
 ## Before changing code
 
 1. Read this file.
-2. Read `AUDIT_REPORT.md`, `ARCHITECTURE.md` and the relevant system documents.
+2. Read the decision sources above, then `AUDIT_REPORT.md`, `ARCHITECTURE.md` and the relevant system documents.
 3. Inspect the current implementation and tests before proposing a rewrite.
 4. Determine whether the task changes simulation, data, rendering, UI, saves or assets.
 5. Prefer the smallest isolated change that satisfies the task.
@@ -29,14 +45,7 @@ This file is the primary instruction contract for coding agents working on Sauna
 
 Simulation must never depend on SpriteKit, SwiftUI, React, Phaser, DOM APIs or visual animation state.
 
-The target architecture must allow operations such as:
-
-```text
-GameSimulation.runDay()
-GameSimulation.runWeek()
-```
-
-without starting a renderer.
+The target architecture must allow simulation advancement without starting a renderer. The canonical production time contract is persistent real-time simulation with one in-game week equal to 24 real hours. Development/debug helpers may advance time explicitly, but production gameplay time is not driven by UI buttons or renderer speed.
 
 Rendering observes simulation state and events. Rendering must not decide revenue, guest satisfaction, progression, upgrade effects or other business truth.
 
@@ -78,13 +87,15 @@ Any persistent data-model change must consider save compatibility.
 
 ## Assets
 
-Follow `ASSET_SPEC.md`.
+Follow `ASSET_SPEC.md` and `CONTENT_STUDIO.md`.
 
 - Never manually nudge individual runtime assets into place as a one-off fix.
 - Fix the anchor/spec/metadata instead.
 - Preserve global coordinate and scale standards.
 - New modular layers must declare their attachment/anchor rules.
 - A visual asset must not carry gameplay logic that belongs in data.
+- Placeholder assets are valid during implementation when their footprint/anchor contract is correct.
+- AI-generated content proposals remain proposals until explicitly approved.
 
 ## Native migration
 
@@ -105,6 +116,7 @@ The existing TypeScript simulation and tests are behavioral references. The Empi
 Before finishing a coding task:
 
 - requested scope implemented;
+- decision source checked;
 - no unrelated refactor;
 - build succeeds;
 - relevant tests pass;
