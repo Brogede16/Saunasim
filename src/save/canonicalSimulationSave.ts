@@ -36,6 +36,9 @@ const runtimeBlockSchema = z.object({
   staffCost: z.number().finite().nonnegative().optional(),
   admissions: z.number().int().nonnegative(),
   specialSeats: z.number().int().nonnegative(),
+  shopSales: z.number().int().nonnegative().optional(),
+  shopRevenue: z.number().finite().nonnegative().optional(),
+  shopProcurement: z.number().finite().nonnegative().optional(),
   revenue: z.object({ admissions: z.number(), specialGus: z.number(), shop: z.number(), total: z.number() }),
   costs: z.object({
     venueBase: z.number(),
@@ -101,6 +104,9 @@ export function importCanonicalSimulationSave(serialized: string): CanonicalCana
             supplementPrice: block.supplementPrice ?? world.activeProgram.supplementPrice,
             sessionMaterialCost: block.sessionMaterialCost ?? currentMaterialCost,
             staffCost: block.staffCost ?? block.costs.staff,
+            shopSales: block.shopSales ?? 0,
+            shopRevenue: block.shopRevenue ?? block.revenue.shop,
+            shopProcurement: block.shopProcurement ?? block.costs.shopProcurement,
           })),
         } as OperatingWeekRuntime
       : undefined;
