@@ -15,6 +15,7 @@ export type CanalOperatingBlock = {
   scheduledAufguss: number;
   demandWeight: number;
   admissionPrice: number;
+  supplementPrice: number;
   admissions: number;
   specialSeats: number;
 };
@@ -61,12 +62,6 @@ function allocateIntegerTotal<T>(items: T[], total: number, weightOf: (item: T) 
   return allocated;
 }
 
-/**
- * Turns the canonical operating plan into concrete open day/daypart blocks.
- *
- * Native ordinary admissions and Special Gus attendance are canonical. Explicit legacy-allocation
- * mode remains only for migration tests that compare against old weekly totals.
- */
 export function buildCanalOperatingBlocks(
   snapshot: GameState,
   operatingPlan: CanalOperatingPlan,
@@ -96,6 +91,7 @@ export function buildCanalOperatingBlocks(
         scheduledAufguss,
         demandWeight,
         admissionPrice: snapshot.admissionPrice,
+        supplementPrice: snapshot.activeProgram.supplementPrice,
         admissions: 0,
         specialSeats: 0,
       });
