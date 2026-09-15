@@ -39,6 +39,9 @@ const runtimeBlockSchema = z.object({
   shopSales: z.number().int().nonnegative().optional(),
   shopRevenue: z.number().finite().nonnegative().optional(),
   shopProcurement: z.number().finite().nonnegative().optional(),
+  recoveryDemand: z.number().int().nonnegative().optional(),
+  recoveryQueueLoss: z.number().int().nonnegative().optional(),
+  recoveryBottleneck: z.literal("Cold recovery").optional(),
   revenue: z.object({ admissions: z.number(), specialGus: z.number(), shop: z.number(), total: z.number() }),
   costs: z.object({
     venueBase: z.number(),
@@ -109,6 +112,9 @@ export function importCanonicalSimulationSave(serialized: string): CanonicalCana
             shopSales: block.shopSales ?? 0,
             shopRevenue: block.shopRevenue ?? block.revenue.shop,
             shopProcurement: block.shopProcurement ?? block.costs.shopProcurement,
+            recoveryDemand: block.recoveryDemand ?? 0,
+            recoveryQueueLoss: block.recoveryQueueLoss ?? 0,
+            recoveryBottleneck: block.recoveryBottleneck,
           })),
         } as OperatingWeekRuntime
       : undefined;
