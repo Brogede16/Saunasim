@@ -27,24 +27,28 @@ describe("Canal canonical realtime bridge", () => {
     expect(offline.envelope.lastSimulatedAt).toBe(start + REAL_MS_PER_GAME_WEEK);
   });
 
-  it("resolves real-time work before the weekly settlement when both matter in the same advance", () => {
+  it("resolves real-time work before the weekly settlement when both share the boundary timestamp", () => {
     const start = 2_000_000;
+    const boundary = start + REAL_MS_PER_GAME_WEEK;
     const result = advanceCanalSimulation(
       createCanonicalCanalEnvelope(
         {
           ...initialState,
-          construction: [{ moduleId: "arrival" as const, completesAt: start + REAL_MS_PER_GAME_WEEK }],
+          construction: [{ moduleId: "arrival" as const, completesAt: boundary }],
         },
         start,
         99,
       ),
-      start + REAL_MS_PER_GAME_WEEK,
+      boundary,
     );
 
-    const types = result.events.map((event) => event.type);
-    expect(types[0]).toBe("construction-completed");
-    expect(types.at(-1)).toBe("game-week-settled");
-    expect(types.filter((type) => type === "operating-block-settled").length).toBeGreaterThan(0);
+    const constructionIndex = result.events.findIndex((event) => event.type === "construction-completed");
+    const settlementIndex = result.events.findIndex((event) => event.type === "game-week-settled");
+    expect(constructionIndex).toBeGreaterThanOrEqual(0);
+    expect(settlementIndex).toBeGreaterThan(constructionIndex);
+    expect(result.events[constructionIndex]?.at).toBe(boundary);
+    expect(result.events[settlementIndex]?.at).toBe(boundary);
+    expect(result.events.filter((event) => event.type === "operating-block-settled").length).toBeGreaterThan(0);
     expect(result.envelope.world.built).toContain("arrival");
     expect(result.envelope.world.lastReport?.netResult).toBeDefined();
   });
