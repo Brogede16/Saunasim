@@ -59,6 +59,7 @@ const operatingRuntimeSchema = z.object({
   settledBlockKeys: z.array(z.string()),
   accruedAdmissions: z.number().int().nonnegative(),
   accruedSpecialSeats: z.number().int().nonnegative(),
+  accruedShopSales: z.number().int().nonnegative().optional(),
   accruedRevenueBreakdown: breakdownSchema,
   accruedCostBreakdown: costBreakdownSchema,
   accruedOperatingNet: z.number().finite(),
@@ -98,6 +99,7 @@ export function importCanonicalSimulationSave(serialized: string): CanonicalCana
     const operatingRuntime = parsed.data.operatingRuntime
       ? {
           ...parsed.data.operatingRuntime,
+          accruedShopSales: parsed.data.operatingRuntime.accruedShopSales ?? 0,
           plannedBlocks: parsed.data.operatingRuntime.plannedBlocks.map((block) => ({
             ...block,
             admissionPrice: block.admissionPrice ?? world.admissionPrice,
