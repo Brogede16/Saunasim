@@ -56,7 +56,7 @@ The player-facing intent `desired sessions per game week` now produces concrete 
 
 ### Deterministic daypart operating blocks
 
-`src/sim/canalOperatingBlocks.ts` now converts the canonical operating week into concrete open blocks by day and daypart (`night`, `morning`, `day`, `evening`).
+`src/sim/canalOperatingBlocks.ts` converts the canonical operating week into concrete open blocks by day and daypart (`night`, `morning`, `day`, `evening`).
 
 - blocks are created only where the venue is actually open after staffing coverage;
 - program intent changes the demand weighting between dayparts;
@@ -65,9 +65,22 @@ The player-facing intent `desired sessions per game week` now produces concrete 
 - Gus seats can only be allocated to blocks containing an actual scheduled session;
 - block admissions and Gus seats sum exactly back to the proven weekly ledger while migration is in progress.
 
-`canalRealtime.ts` emits `operating-block-settled` events with canonical timestamps inside the game week. UI/rendering can therefore consume factual `what happened when` events without owning simulation logic.
+`canalRealtime.ts` emits `operating-block-settled` events with canonical timestamps inside the game week. UI/rendering can consume factual `what happened when` events without owning simulation logic.
 
-This is an intentional migration layer: timing has moved into domain code, while the final revenue/cost/wear formulas still settle from the weekly reference. The next pass moves those state transitions into the blocks themselves.
+### Temporal block economy ownership
+
+`src/sim/canalBlockEconomy.ts` places the proven weekly revenue and operating-cost categories into the operating blocks that caused them.
+
+- admission revenue follows actual block admissions;
+- Gus revenue follows blocks with actual Gus seats;
+- program material cost follows scheduled Gus blocks;
+- shop revenue/procurement follows visiting guests;
+- venue base, utilities and facilities follow operating hours;
+- staffing cost follows operating load and scheduled Gus work;
+- every category conserves the exact weekly ledger total, including rounding residuals;
+- each `operating-block-settled` event now includes its revenue, costs and operating net.
+
+This is intentionally a conservation migration step rather than a competing balance model. The next pass can replace category allocation with native block formulas one category at a time while fixtures prove the weekly outcome stays correct.
 
 ## Tests added
 
@@ -85,37 +98,33 @@ Proves actual scheduled session count, concrete Master wage, exact staff cost an
 
 ### `canalOperatingBlocks.test.ts`
 
-Proves:
+Proves weekly admissions/Gus-seat conservation, session-only Gus allocation, intent-specific dayparts and deterministic allocation. Its daypart comparison explicitly uses adequate staffing so it measures demand timing rather than accidental understaffing.
 
-- weekly admissions and Gus seats are preserved exactly;
-- Gus seats occur only where a scheduled Gus exists;
-- social/show demand shifts later than quiet-recovery demand for the same opening window;
-- block allocation is deterministic.
+### `canalBlockEconomy.test.ts`
+
+Proves every revenue/cost category conserves the weekly ledger exactly and that Gus revenue/materials are owned only by blocks containing scheduled Gus.
 
 ### `canalOperatingEvents.test.ts`
 
-Proves:
-
-- operating blocks are emitted with canonical timestamps inside the correct game week;
-- emitted block totals match the canonical weekly report;
-- one-jump offline and repeated online advancement still produce identical canonical world state.
+Proves operating blocks are emitted inside the correct canonical week, event totals match the report, and one-jump offline vs repeated online advancement still yields identical canonical world state.
 
 ## Known transitional limits
 
 Do not mark the complete Wave 2 loop implemented yet.
 
-1. Revenue, utilities, shop, recovery pressure and wear are still finally calculated by the proven weekly Canal aggregate, then represented in time by the new operating blocks.
-2. Current Canal scheduling has one Master and one effective room lane. Multi-room/multi-Master concurrency is specified but belongs to the scalable scheduler pass.
-3. The old browser `gameStore.updateSchedule()` command still clamps player-entered schedules more aggressively than canonical mechanics allow. Headless mechanics can represent 24/7, but the browser control must be reconciled separately; do not copy its 16-hour cap into Swift.
-4. The legacy `simulateCanalWeek()` function still contains old schedule/staffing shortcuts internally. Canonical settlement overrides the relevant staffing/session consequences; those shortcuts should be deleted as block economics replace the aggregate.
-5. Staffing is currently the compact first-venue requirement set. Larger venues need additional simultaneous function requirements driven by authored facility/content data.
-6. Staff overview UI has not been built. The domain plan already exposes the data the UI must show.
+1. The block economy currently conserves and allocates the proven weekly ledger; it does not yet mutate cash incrementally as each block passes.
+2. Recovery pressure and facility wear are still finally calculated from the weekly aggregate rather than their specific operating blocks.
+3. Current Canal scheduling has one Master and one effective room lane. Multi-room/multi-Master concurrency is specified but belongs to the scalable scheduler pass.
+4. The old browser `gameStore.updateSchedule()` command still clamps player-entered schedules more aggressively than canonical mechanics allow. Headless mechanics can represent 24/7, but the browser control must be reconciled separately; do not copy its 16-hour cap into Swift.
+5. The legacy `simulateCanalWeek()` function still contains old schedule/staffing shortcuts internally. Canonical settlement overrides the relevant staffing/session consequences; those shortcuts should be deleted as native block formulas replace the aggregate.
+6. Staffing is currently the compact first-venue requirement set. Larger venues need additional simultaneous function requirements driven by authored facility/content data.
+7. Staff overview UI has not been built. The domain plan already exposes the data the UI must show.
 
 ## Next executable slice
 
-1. move admission revenue, staff/utilities and program-material settlement into operating blocks;
-2. move recovery pressure and wear into the blocks where use occurs;
-3. accumulate the weekly report from block outcomes rather than allocating a precomputed weekly report;
-4. prove the new block-built report against portable fixtures and offline/online equivalence;
+1. make operating blocks actual simulation milestones/state transitions rather than settlement-only temporal ownership;
+2. mutate cash/revenue/cost accumulators as each block passes while preserving the weekly fixture result;
+3. move recovery pressure and facility wear to the blocks where use happens;
+4. build the weekly report by reducing completed blocks, not by first calling the aggregate ledger;
 5. remove the obsolete 16-hour browser schedule restriction;
 6. add portable Swift fixtures containing staffing plan, session plan and block outcomes.
