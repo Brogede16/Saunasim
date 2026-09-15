@@ -1,7 +1,7 @@
 import type { WeekReport } from "./canalBalance";
 import type { CanalOperatingBlock } from "./canalOperatingBlocks";
 
-export type CanalEconomyMode = "native-guest-flow" | "legacy-allocation";
+export type CanalEconomyMode = "native-operating" | "legacy-allocation";
 
 export type CanalBlockEconomy = CanalOperatingBlock & {
   revenue: {
@@ -22,6 +22,9 @@ export type CanalBlockEconomy = CanalOperatingBlock & {
   operatingNet: number;
 };
 
+const VARIABLE_VENUE_COST_PER_OPEN_HOUR = 2;
+const VARIABLE_UTILITIES_AND_CLEANING_PER_OPEN_HOUR = 2;
+
 function allocateAmount<T>(items: T[], total: number, weightOf: (item: T) => number) {
   if (items.length === 0) return [] as number[];
   if (total === 0) return items.map(() => 0);
@@ -39,14 +42,15 @@ function allocateAmount<T>(items: T[], total: number, weightOf: (item: T) => num
 /**
  * Places operating economy into the blocks that caused it.
  *
- * Native guest flow is canonical: blocks own ticket revenue, Special Gus supplement revenue and
- * the programme-material cost of each actual scheduled session. Shop revenue and the remaining
- * operating-cost categories still conserve the weekly reference during migration.
+ * Canonical native mode owns guest revenue, actual staff cost, per-session programme materials and
+ * the variable open-hour portions of venue/utilities cost. Fixed venue/utilities obligations and
+ * fixed facility costs are deliberately excluded here and charged at the period boundary.
+ * Shop revenue/procurement remains reference-backed until the shop migration slice.
  */
 export function allocateCanalBlockEconomy(
   blocks: CanalOperatingBlock[],
   ledger: Pick<WeekReport, "revenueBreakdown" | "costBreakdown">,
-  mode: CanalEconomyMode = "native-guest-flow",
+  mode: CanalEconomyMode = "native-operating",
 ): CanalBlockEconomy[] {
   const admissionRevenue = mode === "legacy-allocation"
     ? allocateAmount(blocks, ledger.revenueBreakdown.admissions, (block) => block.admissions)
@@ -56,14 +60,22 @@ export function allocateCanalBlockEconomy(
     : blocks.map((block) => Math.round(block.specialSeats * block.supplementPrice * 100) / 100);
   const shopRevenue = allocateAmount(blocks, ledger.revenueBreakdown.shop, (block) => block.admissions);
 
-  const venueBase = allocateAmount(blocks, ledger.costBreakdown.venueBase, (block) => block.openHours);
-  const staff = allocateAmount(blocks, ledger.costBreakdown.staff, (block) => block.openHours + block.scheduledAufguss);
-  const utilities = allocateAmount(blocks, ledger.costBreakdown.utilitiesAndCleaning, (block) => block.openHours);
+  const venueBase = mode === "legacy-allocation"
+    ? allocateAmount(blocks, ledger.costBreakdown.venueBase, (block) => block.openHours)
+    : blocks.map((block) => Math.round(block.openHours * VARIABLE_VENUE_COST_PER_OPEN_HOUR * 100) / 100);
+  const staff = mode === "legacy-allocation"
+    ? allocateAmount(blocks, ledger.costBreakdown.staff, (block) => block.openHours + block.scheduledAufguss)
+    : blocks.map((block) => block.staffCost);
+  const utilities = mode === "legacy-allocation"
+    ? allocateAmount(blocks, ledger.costBreakdown.utilitiesAndCleaning, (block) => block.openHours)
+    : blocks.map((block) => Math.round(block.openHours * VARIABLE_UTILITIES_AND_CLEANING_PER_OPEN_HOUR * 100) / 100);
   const materials = mode === "legacy-allocation"
     ? allocateAmount(blocks, ledger.costBreakdown.programMaterials, (block) => block.scheduledAufguss)
     : blocks.map((block) => Math.round(block.scheduledAufguss * block.sessionMaterialCost * 100) / 100);
   const shopProcurement = allocateAmount(blocks, ledger.costBreakdown.shopProcurement, (block) => block.admissions);
-  const facilities = allocateAmount(blocks, ledger.costBreakdown.facilities, (block) => block.openHours);
+  const facilities = mode === "legacy-allocation"
+    ? allocateAmount(blocks, ledger.costBreakdown.facilities, (block) => block.openHours)
+    : blocks.map(() => 0);
 
   return blocks.map((block, index) => {
     const revenue = {
