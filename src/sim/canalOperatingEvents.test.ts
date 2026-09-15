@@ -3,8 +3,29 @@ import { REAL_MS_PER_GAME_WEEK } from "./canonicalTime";
 import { advanceCanalSimulation, createCanonicalCanalEnvelope } from "./canalRealtime";
 import { initialState } from "./game";
 
+type OperatingBlockEventDetail = {
+  admissions?: number;
+  specialSeats?: number;
+  scheduledAufguss?: number;
+  revenue?: { admissions: number; specialGus: number; shop: number; total: number };
+  costs?: {
+    venueBase: number;
+    staff: number;
+    utilitiesAndCleaning: number;
+    programMaterials: number;
+    shopProcurement: number;
+    facilities: number;
+    total: number;
+  };
+  operatingNet?: number;
+};
+
+function money(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
 describe("canonical Canal operating events", () => {
-  it("emits time-stamped operating blocks before the weekly settlement", () => {
+  it("emits time-stamped operating blocks whose traffic and economy reduce to the weekly report", () => {
     const start = 1_000_000;
     const master = {
       name: "Test Master",
@@ -28,14 +49,22 @@ describe("canonical Canal operating events", () => {
     );
     const blocks = result.events.filter((event) => event.type === "operating-block-settled");
     const settlement = result.events.at(-1);
+    const report = result.envelope.world.lastReport!;
 
     expect(blocks.length).toBeGreaterThan(0);
     expect(settlement?.type).toBe("game-week-settled");
     expect(blocks.every((event) => event.at >= start && event.at < start + REAL_MS_PER_GAME_WEEK)).toBe(true);
-    const parsed = blocks.map((event) => JSON.parse(event.detail ?? "{}") as { admissions?: number; specialSeats?: number; scheduledAufguss?: number });
-    expect(parsed.reduce((total, block) => total + (block.admissions ?? 0), 0)).toBe(result.envelope.world.lastReport?.admissions);
-    expect(parsed.reduce((total, block) => total + (block.specialSeats ?? 0), 0)).toBe(result.envelope.world.lastReport?.specialSeats);
+    const parsed = blocks.map((event) => JSON.parse(event.detail ?? "{}") as OperatingBlockEventDetail);
+    expect(parsed.reduce((total, block) => total + (block.admissions ?? 0), 0)).toBe(report.admissions);
+    expect(parsed.reduce((total, block) => total + (block.specialSeats ?? 0), 0)).toBe(report.specialSeats);
     expect(parsed.some((block) => (block.scheduledAufguss ?? 0) > 0)).toBe(true);
+
+    const revenue = money(parsed.reduce((total, block) => total + (block.revenue?.total ?? 0), 0));
+    const operatingCosts = money(parsed.reduce((total, block) => total + (block.costs?.total ?? 0), 0));
+    const operatingNet = money(parsed.reduce((total, block) => total + (block.operatingNet ?? 0), 0));
+    expect(revenue).toBe(report.revenue);
+    expect(operatingCosts).toBe(report.operatingCosts);
+    expect(operatingNet).toBe(money(report.netResult + report.loanRepayment));
   });
 
   it("mutates cash, condition and runtime before the weekly report is published", () => {
