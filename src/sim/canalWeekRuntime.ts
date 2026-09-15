@@ -1,9 +1,14 @@
 import type { WeekReport } from "./canalBalance";
 import type { CanalBlockEconomy } from "./canalBlockEconomy";
+import type { MaintainableModuleId } from "./maintenance";
+
+export type RuntimeOperatingBlock = CanalBlockEconomy & {
+  wear: Partial<Record<MaintainableModuleId, number>>;
+};
 
 export type OperatingWeekRuntime = {
   week: number;
-  plannedBlocks: CanalBlockEconomy[];
+  plannedBlocks: RuntimeOperatingBlock[];
   settledBlockKeys: string[];
   accruedAdmissions: number;
   accruedSpecialSeats: number;
@@ -12,11 +17,11 @@ export type OperatingWeekRuntime = {
   accruedOperatingNet: number;
 };
 
-export function operatingBlockKey(block: Pick<CanalBlockEconomy, "dayIndex" | "startsAt" | "endsAt">) {
+export function operatingBlockKey(block: Pick<RuntimeOperatingBlock, "dayIndex" | "startsAt" | "endsAt">) {
   return `${block.dayIndex}:${block.startsAt}:${block.endsAt}`;
 }
 
-export function emptyOperatingWeekRuntime(week: number, plannedBlocks: CanalBlockEconomy[]): OperatingWeekRuntime {
+export function emptyOperatingWeekRuntime(week: number, plannedBlocks: RuntimeOperatingBlock[]): OperatingWeekRuntime {
   return {
     week,
     plannedBlocks,
@@ -40,7 +45,7 @@ function money(value: number) {
   return Math.round(value * 100) / 100;
 }
 
-export function settleOperatingBlock(runtime: OperatingWeekRuntime, block: CanalBlockEconomy): OperatingWeekRuntime {
+export function settleOperatingBlock(runtime: OperatingWeekRuntime, block: RuntimeOperatingBlock): OperatingWeekRuntime {
   const key = operatingBlockKey(block);
   if (runtime.settledBlockKeys.includes(key)) return runtime;
 
