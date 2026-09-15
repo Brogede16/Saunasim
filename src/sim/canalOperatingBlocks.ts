@@ -1,5 +1,6 @@
 import type { WeekReport } from "./canalBalance";
 import { calculateNativeCanalBlockAdmissions, calculateNativeCanalBlockSpecialSeats } from "./canalBlockDemand";
+import { calculateCanalBlockRecovery } from "./canalBlockRecovery";
 import { calculateCanalBlockShopOutcome } from "./canalBlockShop";
 import type { GameState } from "./game";
 import type { CanalOperatingPlan } from "./canalOperatingPlan";
@@ -25,6 +26,9 @@ export type CanalOperatingBlock = {
   shopSales: number;
   shopRevenue: number;
   shopProcurement: number;
+  recoveryDemand: number;
+  recoveryQueueLoss: number;
+  recoveryBottleneck?: "Cold recovery";
 };
 
 const DAYPARTS: Array<{ id: CanalDaypart; from: number; to: number }> = [
@@ -119,6 +123,8 @@ export function buildCanalOperatingBlocks(
         shopSales: 0,
         shopRevenue: 0,
         shopProcurement: 0,
+        recoveryDemand: 0,
+        recoveryQueueLoss: 0,
       });
     }
   }
@@ -158,10 +164,19 @@ export function buildCanalOperatingBlocks(
       )
     : calculateNativeCanalBlockSpecialSeats(snapshot, operatingPlan, blocksWithAdmissions);
 
-  return blocksWithAdmissions.map((block, index) => ({
-    ...block,
-    specialSeats: specialAllocations[index] ?? 0,
-  }));
+  return blocksWithAdmissions.map((block, index) => {
+    const specialSeats = specialAllocations[index] ?? 0;
+    const recovery = admissionMode === "legacy-allocation"
+      ? { recoveryDemand: 0, queueLoss: 0, bottleneck: undefined }
+      : calculateCanalBlockRecovery(snapshot, { scheduledAufguss: block.scheduledAufguss, specialSeats });
+    return {
+      ...block,
+      specialSeats,
+      recoveryDemand: recovery.recoveryDemand,
+      recoveryQueueLoss: recovery.queueLoss,
+      recoveryBottleneck: recovery.bottleneck,
+    };
+  });
 }
 
 export function summarizeCanalOperatingBlocks(blocks: CanalOperatingBlock[]) {
@@ -174,5 +189,7 @@ export function summarizeCanalOperatingBlocks(blocks: CanalOperatingBlock[]) {
     shopSales: blocks.reduce((total, block) => total + block.shopSales, 0),
     shopRevenue: Math.round(blocks.reduce((total, block) => total + block.shopRevenue, 0) * 100) / 100,
     shopProcurement: Math.round(blocks.reduce((total, block) => total + block.shopProcurement, 0) * 100) / 100,
+    recoveryDemand: blocks.reduce((total, block) => total + block.recoveryDemand, 0),
+    recoveryQueueLoss: blocks.reduce((total, block) => total + block.recoveryQueueLoss, 0),
   };
 }
