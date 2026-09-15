@@ -2,6 +2,7 @@ import { z } from "zod";
 import { importSave, exportSave } from "./savegame";
 import { advanceCanalSimulation, type CanonicalCanalEnvelope } from "../sim/canalRealtime";
 import { createRngState } from "../sim/deterministicRng";
+import { previewProgram } from "../sim/program";
 import type { OperatingWeekRuntime } from "../sim/canalWeekRuntime";
 
 export const CANONICAL_SIMULATION_SAVE_VERSION = 2;
@@ -27,10 +28,11 @@ const runtimeBlockSchema = z.object({
   openHours: z.number().nonnegative(),
   scheduledAufguss: z.number().int().nonnegative(),
   demandWeight: z.number().nonnegative(),
-  // Optional only for reading early v2 saves created before guest revenue became block-owned.
+  // Optional only for reading early v2 saves created before guest flow became block-owned.
   // Import normalises missing values from the saved world configuration before runtime resumes.
   admissionPrice: z.number().finite().nonnegative().optional(),
   supplementPrice: z.number().finite().nonnegative().optional(),
+  sessionMaterialCost: z.number().finite().nonnegative().optional(),
   admissions: z.number().int().nonnegative(),
   specialSeats: z.number().int().nonnegative(),
   revenue: z.object({ admissions: z.number(), specialGus: z.number(), shop: z.number(), total: z.number() }),
@@ -88,6 +90,7 @@ export function importCanonicalSimulationSave(serialized: string): CanonicalCana
     if (!parsed.success || parsed.data.lastSimulatedAt < parsed.data.startedAt) return undefined;
     const world = importSave(parsed.data.legacyGameSave);
     if (!world) return undefined;
+    const currentMaterialCost = previewProgram(world.activeProgram).materialCost;
     const operatingRuntime = parsed.data.operatingRuntime
       ? {
           ...parsed.data.operatingRuntime,
@@ -95,6 +98,7 @@ export function importCanonicalSimulationSave(serialized: string): CanonicalCana
             ...block,
             admissionPrice: block.admissionPrice ?? world.admissionPrice,
             supplementPrice: block.supplementPrice ?? world.activeProgram.supplementPrice,
+            sessionMaterialCost: block.sessionMaterialCost ?? currentMaterialCost,
           })),
         } as OperatingWeekRuntime
       : undefined;
