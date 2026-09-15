@@ -42,10 +42,10 @@ function allocateAmount<T>(items: T[], total: number, weightOf: (item: T) => num
 /**
  * Places operating economy into the blocks that caused it.
  *
- * Canonical native mode owns guest revenue, actual staff cost, per-session programme materials and
- * the variable open-hour portions of venue/utilities cost. Fixed venue/utilities obligations and
- * fixed facility costs are deliberately excluded here and charged at the period boundary.
- * Shop revenue/procurement remains reference-backed until the shop migration slice.
+ * Canonical native mode owns guest revenue, shop revenue/procurement, actual staff cost,
+ * per-session programme materials and the variable open-hour portions of venue/utilities cost.
+ * Fixed venue/utilities obligations and fixed facility costs are deliberately excluded here and
+ * charged at the period boundary. Explicit legacy-allocation mode remains for migration tests.
  */
 export function allocateCanalBlockEconomy(
   blocks: CanalOperatingBlock[],
@@ -58,7 +58,9 @@ export function allocateCanalBlockEconomy(
   const specialRevenue = mode === "legacy-allocation"
     ? allocateAmount(blocks, ledger.revenueBreakdown.specialGus, (block) => block.specialSeats)
     : blocks.map((block) => Math.round(block.specialSeats * block.supplementPrice * 100) / 100);
-  const shopRevenue = allocateAmount(blocks, ledger.revenueBreakdown.shop, (block) => block.admissions);
+  const shopRevenue = mode === "legacy-allocation"
+    ? allocateAmount(blocks, ledger.revenueBreakdown.shop, (block) => block.admissions)
+    : blocks.map((block) => block.shopRevenue);
 
   const venueBase = mode === "legacy-allocation"
     ? allocateAmount(blocks, ledger.costBreakdown.venueBase, (block) => block.openHours)
@@ -72,7 +74,9 @@ export function allocateCanalBlockEconomy(
   const materials = mode === "legacy-allocation"
     ? allocateAmount(blocks, ledger.costBreakdown.programMaterials, (block) => block.scheduledAufguss)
     : blocks.map((block) => Math.round(block.scheduledAufguss * block.sessionMaterialCost * 100) / 100);
-  const shopProcurement = allocateAmount(blocks, ledger.costBreakdown.shopProcurement, (block) => block.admissions);
+  const shopProcurement = mode === "legacy-allocation"
+    ? allocateAmount(blocks, ledger.costBreakdown.shopProcurement, (block) => block.admissions)
+    : blocks.map((block) => block.shopProcurement);
   const facilities = mode === "legacy-allocation"
     ? allocateAmount(blocks, ledger.costBreakdown.facilities, (block) => block.openHours)
     : blocks.map(() => 0);
