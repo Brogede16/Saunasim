@@ -10,11 +10,14 @@ export type CanalPeriodCosts = {
 const FIXED_VENUE_BASE = 300;
 const FIXED_UTILITIES_AND_CLEANING = 212;
 
+// Preserve the inherited weekly operating burden while classifying it causally. The old aggregate
+// counted an extra 90 for the yard and 70 for the program sauna under "program materials" even
+// when no session caused it. Those fixed amounts belong to facility obligations, not session use.
 const FACILITY_PERIOD_COST: Partial<Record<ModuleId, number>> = {
   shower: 20,
   "cold-plunge": 75,
-  "aufguss-yard": 100,
-  program: 220,
+  "aufguss-yard": 190,
+  program: 290,
 };
 
 function operationalForPeriod(snapshot: GameState, id: ModuleId) {
