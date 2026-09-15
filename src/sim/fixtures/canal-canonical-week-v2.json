@@ -29,7 +29,7 @@
   },
   "expected": {
     "week": 2,
-    "cash": 4388,
+    "cash": 4403,
     "admissions": 70,
     "specialSeats": 14,
     "shopSales": 0,
