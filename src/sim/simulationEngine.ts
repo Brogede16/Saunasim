@@ -24,24 +24,31 @@ export type SimulationContext = {
   from: CanonicalTimestamp;
   to: CanonicalTimestamp;
   rng: RngState;
+  startedAt: CanonicalTimestamp;
 };
 
 export type SimulationAdapter<TWorld> = {
   /**
    * Return the next canonical milestone strictly after `after` and at or before `to`.
-   * Construction completion, technician arrival/repair completion and similar real-time jobs
-   * belong here. Return undefined when no milestone exists in the interval.
+   * Construction completion, technician arrival/repair completion, operating-block settlement and
+   * similar real-time jobs belong here. `startedAt` is the canonical epoch so domain adapters can
+   * map game-week/day/hour coordinates to absolute timestamps without consulting wall-clock time.
    */
-  nextMilestoneAt?(world: TWorld, after: CanonicalTimestamp, to: CanonicalTimestamp): CanonicalTimestamp | undefined;
+  nextMilestoneAt?(
+    world: TWorld,
+    after: CanonicalTimestamp,
+    to: CanonicalTimestamp,
+    startedAt: CanonicalTimestamp,
+  ): CanonicalTimestamp | undefined;
 
   /** Resolve ordinary simulation for [from, to). UI/rendering must not participate. */
   advanceInterval(world: TWorld, context: SimulationContext): SimulationStepResult<TWorld>;
 
   /** Resolve all canonical milestone changes at one timestamp before a weekly settlement. */
-  resolveMilestonesAt?(world: TWorld, at: CanonicalTimestamp, rng: RngState): SimulationStepResult<TWorld>;
+  resolveMilestonesAt?(world: TWorld, at: CanonicalTimestamp, rng: RngState, startedAt: CanonicalTimestamp): SimulationStepResult<TWorld>;
 
   /** Resolve the end-of-game-week settlement/report boundary. */
-  resolveGameWeekBoundary?(world: TWorld, at: CanonicalTimestamp, rng: RngState): SimulationStepResult<TWorld>;
+  resolveGameWeekBoundary?(world: TWorld, at: CanonicalTimestamp, rng: RngState, startedAt: CanonicalTimestamp): SimulationStepResult<TWorld>;
 };
 
 export type AdvanceSimulationResult<TWorld> = {
@@ -68,7 +75,7 @@ export function advanceSimulation<TWorld>(
 
   while (cursor < to) {
     const weekBoundary = nextGameWeekBoundary(input.startedAt, cursor);
-    const milestone = adapter.nextMilestoneAt?.(world, cursor, to);
+    const milestone = adapter.nextMilestoneAt?.(world, cursor, to, input.startedAt);
     if (milestone !== undefined && (milestone <= cursor || milestone > to)) {
       throw new Error("Simulation adapter returned an invalid milestone timestamp.");
     }
@@ -76,7 +83,7 @@ export function advanceSimulation<TWorld>(
     const next = Math.min(to, weekBoundary, milestone ?? Number.POSITIVE_INFINITY);
 
     if (next > cursor) {
-      const advanced = adapter.advanceInterval(world, { from: cursor, to: next, rng });
+      const advanced = adapter.advanceInterval(world, { from: cursor, to: next, rng, startedAt: input.startedAt });
       world = advanced.world;
       rng = advanced.rng;
       appendEvents(events, advanced.events);
@@ -84,7 +91,7 @@ export function advanceSimulation<TWorld>(
     }
 
     if (milestone !== undefined && cursor === milestone) {
-      const resolved = adapter.resolveMilestonesAt?.(world, cursor, rng);
+      const resolved = adapter.resolveMilestonesAt?.(world, cursor, rng, input.startedAt);
       if (resolved) {
         world = resolved.world;
         rng = resolved.rng;
@@ -93,7 +100,7 @@ export function advanceSimulation<TWorld>(
     }
 
     if (cursor === weekBoundary) {
-      const resolved = adapter.resolveGameWeekBoundary?.(world, cursor, rng);
+      const resolved = adapter.resolveGameWeekBoundary?.(world, cursor, rng, input.startedAt);
       if (resolved) {
         world = resolved.world;
         rng = resolved.rng;
