@@ -1,4 +1,7 @@
+import { canalProgramCapacity } from "../content/canalCapacity";
+import { evaluateScheduleFit } from "./canalBalance";
 import type { GameState } from "./game";
+import { conditionMultiplier } from "./maintenance";
 import type { CanalOperatingPlan } from "./canalOperatingPlan";
 import type { CanalDaypart } from "./canalOperatingBlocks";
 
@@ -8,6 +11,11 @@ export type CanalDemandBlockInput = {
   openHours: number;
 };
 
+export type CanalSpecialDemandBlockInput = CanalDemandBlockInput & {
+  scheduledAufguss: number;
+  admissions: number;
+};
+
 export type CanalBlockDemand = CanalDemandBlockInput & {
   ordinaryPotential: number;
   ordinaryCapacity: number;
@@ -15,6 +23,7 @@ export type CanalBlockDemand = CanalDemandBlockInput & {
 };
 
 const CLASSIC_REFERENCE_WEIGHT = 1.035;
+const WALK_UP_SPARE_FILL_SHARE = 0.25;
 
 function daypartWeight(intent: GameState["activeProgram"]["intent"], daypart: CanalDaypart) {
   if (intent === "Quiet Recovery") {
@@ -57,6 +66,27 @@ function weeklyPriceResistance(snapshot: GameState) {
     : priceDelta * 2 + Math.max(0, priceDelta - 6) * 2;
 }
 
+function physicalProgramDemandFit(snapshot: GameState) {
+  const program = snapshot.activeProgram;
+  const has = (id: GameState["built"][number]) => snapshot.built.includes(id);
+  if (program.intent === "Quiet Recovery" && (has("shower") || has("cold-plunge"))) return { multiplier: 1.1, priceSensitivity: 0.85 };
+  if (program.intent === "Social Energy" && has("aufguss-yard")) return { multiplier: 1.15, priceSensitivity: 0.85 };
+  if (program.intent === "Show Journey" && (has("program") || has("aufguss-yard"))) return { multiplier: 1.15, priceSensitivity: 0.8 };
+  if (program.intent === "Classic Ritual" && has("program")) return { multiplier: 1.08, priceSensitivity: 0.9 };
+  return { multiplier: 1, priceSensitivity: 1 };
+}
+
+function sessionSeatCapacity(snapshot: GameState) {
+  const hasProgramSauna = snapshot.built.includes("program");
+  const hasYard = snapshot.built.includes("aufguss-yard");
+  const hasBenchRefit = snapshot.built.includes("bench-refit");
+  if (hasProgramSauna) {
+    return Math.max(1, Math.floor(canalProgramCapacity.programSauna * conditionMultiplier(snapshot.condition.program ?? 100)));
+  }
+  if (hasYard) return canalProgramCapacity.outdoorGusYard;
+  return canalProgramCapacity.compactRoom + (hasBenchRefit ? canalProgramCapacity.benchRefitBonus : 0);
+}
+
 function allocateIntegerByWeight<T>(items: T[], total: number, weightOf: (item: T) => number) {
   if (items.length === 0 || total <= 0) return items.map(() => 0);
   const weights = items.map((item) => Math.max(0, weightOf(item)));
@@ -76,13 +106,12 @@ function allocateIntegerByWeight<T>(items: T[], total: number, weightOf: (item: 
 }
 
 /**
- * Computes ordinary arrivals directly from the operating blocks rather than distributing a
- * precomputed weekly admissions total. The 50-hour demand references are inherited balance data,
- * but time-of-day, actual staffed opening hours and price resistance are resolved here.
+ * Computes ordinary arrivals directly from staffed operating blocks. The 50-hour references are
+ * inherited balance constants, but no weekly admissions result is supplied to this function.
  */
 export function calculateNativeCanalBlockAdmissions(
   snapshot: GameState,
-  operatingPlan: CanalOperatingPlan,
+  _operatingPlan: CanalOperatingPlan,
   blocks: CanalDemandBlockInput[],
 ): CanalBlockDemand[] {
   if (blocks.length === 0) return [];
@@ -91,16 +120,10 @@ export function calculateNativeCanalBlockAdmissions(
   const rawPotential = blocks.map((block) =>
     basePerHour * block.openHours * (daypartWeight(snapshot.activeProgram.intent, block.daypart) / CLASSIC_REFERENCE_WEIGHT),
   );
-  const totalRawPotential = rawPotential.reduce((sum, value) => sum + value, 0);
-  const roundedPotential = Math.max(0, Math.round(totalRawPotential));
+  const roundedPotential = Math.max(0, Math.round(rawPotential.reduce((sum, value) => sum + value, 0)));
 
   const capacityPerFiftyHours = 82 / 50;
-  const rawCapacity = blocks.map((block) => capacityPerFiftyHours * block.openHours);
-  const totalCapacity = Math.max(0, Math.round(rawCapacity.reduce((sum, value) => sum + value, 0)));
-
-  // Host arrival relief is already represented in the staffed effective schedule. Keep the native
-  // block model causal: capacity scales with actual open time instead of receiving a second hidden
-  // weekly host bonus here.
+  const totalCapacity = Math.max(0, Math.round(blocks.reduce((sum, block) => sum + capacityPerFiftyHours * block.openHours, 0)));
   const priceAdjustedTotal = Math.max(0, roundedPotential - weeklyPriceResistance(snapshot));
   const acceptedTotal = Math.min(totalCapacity, priceAdjustedTotal);
   const admissions = allocateIntegerByWeight(blocks, acceptedTotal, (block) =>
@@ -117,4 +140,41 @@ export function calculateNativeCanalBlockAdmissions(
     ordinaryCapacity: capacities[index] ?? 0,
     admissions: admissions[index] ?? 0,
   }));
+}
+
+/**
+ * Computes Special Gus attendance from the actual scheduled session count and current programme
+ * promise. Capacity and demand are derived here rather than copied from a weekly special-seat total.
+ */
+export function calculateNativeCanalBlockSpecialSeats(
+  snapshot: GameState,
+  operatingPlan: CanalOperatingPlan,
+  blocks: CanalSpecialDemandBlockInput[],
+) {
+  const scheduledSessions = blocks.reduce((sum, block) => sum + block.scheduledAufguss, 0);
+  if (!snapshot.masterHired || scheduledSessions <= 0) return blocks.map(() => 0);
+
+  const fit = physicalProgramDemandFit(snapshot);
+  const basePerSession = Math.max(
+    0,
+    7
+      + (snapshot.activeProgram.intent === "Social Energy" ? 2.5 : snapshot.activeProgram.intent === "Show Journey" ? 2 : 0)
+      - Math.max(0, snapshot.activeProgram.supplementPrice - 7) * 2 * fit.priceSensitivity,
+  );
+  const scheduleTiming = evaluateScheduleFit(operatingPlan.effectiveSchedule, snapshot.activeProgram).programTiming;
+  const programmeDemand = Math.max(0, Math.round(scheduledSessions * fit.multiplier * basePerSession * scheduleTiming));
+  const specialCapacity = scheduledSessions * sessionSeatCapacity(snapshot);
+  const totalAdmissions = blocks.reduce((sum, block) => sum + block.admissions, 0);
+  const hasCapacityUpgrade = snapshot.built.includes("bench-refit") || snapshot.built.includes("program") || snapshot.built.includes("aufguss-yard");
+  const spareCapacity = hasCapacityUpgrade ? Math.max(0, Math.min(totalAdmissions, specialCapacity) - programmeDemand) : 0;
+  const walkUpFill = Math.round(spareCapacity * WALK_UP_SPARE_FILL_SHARE);
+  const accepted = Math.min(totalAdmissions, specialCapacity, programmeDemand + walkUpFill);
+
+  return allocateIntegerByWeight(
+    blocks,
+    accepted,
+    (block) => block.scheduledAufguss > 0
+      ? block.scheduledAufguss * Math.max(0.25, daypartWeight(snapshot.activeProgram.intent, block.daypart))
+      : 0,
+  );
 }
