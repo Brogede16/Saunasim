@@ -12,6 +12,7 @@ import { evaluateComposition, type ActiveProgram } from "./program";
 import { evaluateProgramDelivery } from "./programEvaluation";
 import { createRngState, type RngState } from "./deterministicRng";
 import { planCanalOperations } from "./canalOperatingPlan";
+import { buildCanalOperatingBlocks } from "./canalOperatingBlocks";
 import {
   advanceSimulation,
   type AdvanceSimulationResult,
@@ -19,7 +20,7 @@ import {
   type SimulationEnvelope,
   type SimulationEvent,
 } from "./simulationEngine";
-import type { CanonicalTimestamp } from "./canonicalTime";
+import { GAME_DAYS_PER_WEEK, REAL_MS_PER_GAME_WEEK, type CanonicalTimestamp } from "./canonicalTime";
 
 export type CanonicalCanalEnvelope = SimulationEnvelope<GameState>;
 
@@ -172,12 +173,41 @@ export function settleLegacyCanalGameWeek(snapshot: GameState): GameState {
   };
 }
 
+function operatingBlockEvents(before: GameState, after: GameState, weekBoundaryAt: CanonicalTimestamp): SimulationEvent[] {
+  const report = after.lastReport;
+  if (!report) return [];
+  const operatingPlan = planCanalOperations(before);
+  const blocks = buildCanalOperatingBlocks(before, operatingPlan, report);
+  const realMsPerGameDay = REAL_MS_PER_GAME_WEEK / GAME_DAYS_PER_WEEK;
+  const weekStart = weekBoundaryAt - REAL_MS_PER_GAME_WEEK;
+
+  return blocks
+    .filter((block) => block.admissions > 0 || block.specialSeats > 0 || block.scheduledAufguss > 0)
+    .map((block) => {
+      const gameHoursFromWeekStart = block.dayIndex * 24 + block.startsAt;
+      const at = weekStart + (gameHoursFromWeekStart / 24) * realMsPerGameDay;
+      return {
+        at,
+        type: "operating-block-settled",
+        detail: JSON.stringify({
+          dayIndex: block.dayIndex,
+          daypart: block.daypart,
+          startsAt: block.startsAt,
+          endsAt: block.endsAt,
+          admissions: block.admissions,
+          specialSeats: block.specialSeats,
+          scheduledAufguss: block.scheduledAufguss,
+        }),
+      } satisfies SimulationEvent;
+    });
+}
+
 const canalRealtimeAdapter: SimulationAdapter<GameState> = {
   nextMilestoneAt: nextRealtimeMilestone,
   advanceInterval(world, context) {
     // Canonical elapsed time and real-time milestones already flow through this boundary. Demand
-    // and guest traffic are still settled at the canonical game-week boundary while Wave 2 moves
-    // them into smaller deterministic operating blocks.
+    // is now represented as deterministic day/daypart operating blocks at settlement; the next
+    // migration step moves each block's economic state transition into this interval boundary.
     return { world, rng: context.rng };
   },
   resolveMilestonesAt(world, at, rng) {
@@ -189,7 +219,12 @@ const canalRealtimeAdapter: SimulationAdapter<GameState> = {
     return {
       world: next,
       rng,
-      events: next === world ? [] : [{ at, type: "game-week-settled", detail: `week-${world.week}` }],
+      events: next === world
+        ? []
+        : [
+            ...operatingBlockEvents(world, next, at),
+            { at, type: "game-week-settled", detail: `week-${world.week}` },
+          ],
     };
   },
 };
