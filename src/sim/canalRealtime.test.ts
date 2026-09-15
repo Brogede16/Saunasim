@@ -41,10 +41,10 @@ describe("Canal canonical realtime bridge", () => {
       start + REAL_MS_PER_GAME_WEEK,
     );
 
-    expect(result.events.map((event) => event.type)).toEqual([
-      "construction-completed",
-      "game-week-settled",
-    ]);
+    const types = result.events.map((event) => event.type);
+    expect(types[0]).toBe("construction-completed");
+    expect(types.at(-1)).toBe("game-week-settled");
+    expect(types.filter((type) => type === "operating-block-settled").length).toBeGreaterThan(0);
     expect(result.envelope.world.built).toContain("arrival");
     expect(result.envelope.world.lastReport?.netResult).toBeDefined();
   });
