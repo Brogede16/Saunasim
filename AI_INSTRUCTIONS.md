@@ -9,11 +9,13 @@ Before interpreting any product behavior, read the decision sources in this orde
 1. `docs/decision-reconciliation-2026-09-15.md` for the explicit status of inherited decisions after reconciliation.
 2. `PRODUCT_DECISIONS_2026-09-15.md` for the newest user-approved product decisions made during Xcode preparation.
 3. `docs/decision-log.md` for the full inherited repository decision history.
-4. Current dedicated system contracts under `docs/` for detailed implementation rules.
-5. `GAME_DESIGN.md`, `ARCHITECTURE.md`, `SYSTEMS.md`, `DATA_MODEL.md`, `BALANCE.md`, `SAVE_SYSTEM.md`, `ASSET_SPEC.md`, `CONTENT_STUDIO.md` and migration/roadmap documents for the native preparation layer.
-6. Historical/audit/proposal documents only as supporting context.
+4. `MECHANICS.md` for the canonical causal interaction between approved systems.
+5. `MECHANICS_IMPLEMENTATION_MATRIX.md` for what is actually implemented, partial, specified or deferred.
+6. Current dedicated system contracts under `docs/` for detailed implementation rules.
+7. `GAME_DESIGN.md`, `ARCHITECTURE.md`, `SYSTEMS.md`, `DATA_MODEL.md`, `BALANCE.md`, `SAVE_SYSTEM.md`, `ASSET_SPEC.md`, `CONTENT_STUDIO.md` and migration/roadmap documents for the native preparation layer.
+8. Historical/audit/proposal documents only as supporting context.
 
-When these disagree, the reconciliation file and newer explicit user-approved decisions override older working assumptions. Do not silently invent a compromise.
+When these disagree, the reconciliation file and newer explicit user-approved decisions override older working assumptions. `MECHANICS.md` defines how those approved decisions interact; it must never be used to resurrect a superseded rule. Do not silently invent a compromise.
 
 The `ai-xcode-preparation` branch inherits the full repository history from `main`; preparation documents are an additional consolidation/migration layer, not a replacement for the existing decision archive.
 
@@ -25,16 +27,18 @@ Specific city names, venue names, market names or other generated content are no
 
 1. Read this file.
 2. Read `docs/decision-reconciliation-2026-09-15.md` and `PRODUCT_DECISIONS_2026-09-15.md`.
-3. Read the relevant inherited decisions in `docs/decision-log.md` and relevant system contracts.
-4. Read `AUDIT_REPORT.md`, `ARCHITECTURE.md` and the relevant native-preparation documents.
-5. Inspect the current implementation and tests before proposing a rewrite.
-6. Determine whether the task changes simulation, data, rendering, UI, saves, content or assets.
-7. Prefer the smallest isolated change that satisfies the task.
+3. Read `MECHANICS.md` and the relevant rows in `MECHANICS_IMPLEMENTATION_MATRIX.md`.
+4. Read the relevant inherited decisions in `docs/decision-log.md` and relevant system contracts.
+5. Read `AUDIT_REPORT.md`, `ARCHITECTURE.md` and the relevant native-preparation documents.
+6. Inspect the current implementation and tests before proposing a rewrite.
+7. Determine whether the task changes simulation, data, rendering, UI, saves, content or assets.
+8. Prefer the smallest isolated change that satisfies the task while completing the full causal chain for that mechanic.
 
 ## Core rules
 
 - Do not rewrite a working system merely because another architecture looks cleaner.
 - Preserve existing behavior unless a reconciled decision explicitly changes product behavior.
+- A documented decision is not `IMPLEMENTED` until its canonical state transition, downstream consequences and tests exist.
 - Build after meaningful code changes.
 - Run relevant tests after meaningful code changes.
 - Fix build/test failures introduced by the task before finishing.
@@ -43,9 +47,27 @@ Specific city names, venue names, market names or other generated content are no
 - Reuse existing models and terminology when they represent the same concept.
 - One system must have one clear owner. Avoid duplicate sources of truth.
 - Keep files focused and names explicit. Optimize for agents and maintainers, not cleverness.
-- Add tests for deterministic gameplay changes whenever practical.
+- Add deterministic tests for gameplay changes whenever practical.
+- Update `MECHANICS_IMPLEMENTATION_MATRIX.md` when implementation status changes.
 - Update documentation when architecture, save data, balance ownership or system boundaries change.
 - Do not promote a proposal, placeholder, generated site/name or historical prototype behavior to canonical content without an explicit decision source.
+
+## Definition of implemented
+
+A mechanic may only be marked `IMPLEMENTED` when all applicable items are true:
+
+1. owning system is identified;
+2. required canonical state/data fields exist;
+3. state transition is implemented outside UI/rendering;
+4. downstream consequences are applied to dependent systems;
+5. player-facing cause/consequence feedback exists where relevant;
+6. save/offline behavior is correct where relevant;
+7. deterministic automated test exists;
+8. balance/exploit scenario is covered where relevant;
+9. renderer/UI only presents canonical results;
+10. implementation matrix/status docs are updated.
+
+Otherwise mark it `PARTIAL`, `SPECIFIED`, `LOCKED` or `DEFERRED` as appropriate.
 
 ## Simulation boundary
 
@@ -91,10 +113,13 @@ Do not build a player-facing shift/rota editor.
 
 - player hires/fires staff and chooses opening hours;
 - the system assigns required staff coverage automatically;
+- venue staff and chain staff are distinct;
 - staff are paid hourly for assigned working time;
 - an Aufguss Master cannot perform overlapping sessions;
 - continuous assigned time between Aufguss sessions is paid work;
 - sickness, holidays, voluntary turnover and HR-drama systems are outside current scope.
+
+Understaffing must produce role-specific operational consequences, never a generic unexplained percentage penalty.
 
 ## Save safety
 
@@ -138,11 +163,12 @@ Do not perform a big-bang JavaScript/TypeScript-to-Swift rewrite.
 
 During migration:
 
-1. choose one system;
+1. choose one mechanic/system from `MECHANICS_IMPLEMENTATION_MATRIX.md`;
 2. describe current behavior with tests/fixtures;
-3. implement the Swift equivalent;
+3. implement the Swift equivalent including downstream consequences;
 4. compare outputs;
-5. only then retire the old implementation for that system.
+5. update matrix status;
+6. only then retire the old implementation for that mechanic/system.
 
 The existing TypeScript simulation and tests are behavioral references. The Empire rebuild is a broader product reference, not the target native architecture. The existence of two browser implementations is temporary reference debt, not a product requirement.
 
@@ -152,6 +178,8 @@ Before finishing a coding task:
 
 - requested scope implemented;
 - decision reconciliation checked;
+- `MECHANICS.md` causal chain checked;
+- implementation matrix row updated;
 - inherited decision source checked;
 - no unrelated refactor;
 - build succeeds;
@@ -159,6 +187,7 @@ Before finishing a coding task:
 - new logic has tests where practical;
 - save compatibility checked if data changed;
 - balance ownership checked if numeric rules changed;
+- downstream consequences verified;
 - docs updated if system contracts changed;
 - proposals/placeholders remain clearly labelled;
 - short changelog/summary supplied.
