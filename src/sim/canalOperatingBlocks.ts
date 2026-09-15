@@ -1,5 +1,5 @@
 import type { WeekReport } from "./canalBalance";
-import { calculateNativeCanalBlockAdmissions } from "./canalBlockDemand";
+import { calculateNativeCanalBlockAdmissions, calculateNativeCanalBlockSpecialSeats } from "./canalBlockDemand";
 import type { GameState } from "./game";
 import type { CanalOperatingPlan } from "./canalOperatingPlan";
 
@@ -64,9 +64,8 @@ function allocateIntegerTotal<T>(items: T[], total: number, weightOf: (item: T) 
 /**
  * Turns the canonical operating plan into concrete open day/daypart blocks.
  *
- * Native admissions are canonical. The explicit legacy-allocation mode exists only for parity and
- * migration tests that need to prove conservation against an older weekly total. Gus seats are
- * still temporarily allocated from the weekly reference until their own demand slice migrates.
+ * Native ordinary admissions and Special Gus attendance are canonical. Explicit legacy-allocation
+ * mode remains only for migration tests that compare against old weekly totals.
  */
 export function buildCanalOperatingBlocks(
   snapshot: GameState,
@@ -106,15 +105,22 @@ export function buildCanalOperatingBlocks(
   const admissionAllocations = admissionMode === "legacy-allocation" && ledger?.admissions !== undefined
     ? allocateIntegerTotal(blocks, ledger.admissions, (block) => block.demandWeight)
     : calculateNativeCanalBlockAdmissions(snapshot, operatingPlan, blocks).map((block) => block.admissions);
-  const specialAllocations = allocateIntegerTotal(
-    blocks,
-    ledger?.specialSeats ?? 0,
-    (block) => block.scheduledAufguss > 0 ? block.scheduledAufguss * Math.max(0.25, block.demandWeight) : 0,
-  );
 
-  return blocks.map((block, index) => ({
+  const blocksWithAdmissions = blocks.map((block, index) => ({
     ...block,
     admissions: admissionAllocations[index] ?? 0,
+  }));
+
+  const specialAllocations = admissionMode === "legacy-allocation" && ledger?.specialSeats !== undefined
+    ? allocateIntegerTotal(
+        blocksWithAdmissions,
+        ledger.specialSeats,
+        (block) => block.scheduledAufguss > 0 ? block.scheduledAufguss * Math.max(0.25, block.demandWeight) : 0,
+      )
+    : calculateNativeCanalBlockSpecialSeats(snapshot, operatingPlan, blocksWithAdmissions);
+
+  return blocksWithAdmissions.map((block, index) => ({
+    ...block,
     specialSeats: specialAllocations[index] ?? 0,
   }));
 }
