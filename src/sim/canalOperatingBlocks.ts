@@ -2,6 +2,7 @@ import type { WeekReport } from "./canalBalance";
 import { calculateNativeCanalBlockAdmissions, calculateNativeCanalBlockSpecialSeats } from "./canalBlockDemand";
 import type { GameState } from "./game";
 import type { CanalOperatingPlan } from "./canalOperatingPlan";
+import { previewProgram } from "./program";
 
 export type CanalDaypart = "night" | "morning" | "day" | "evening";
 export type CanalAdmissionMode = "native" | "legacy-allocation";
@@ -16,6 +17,7 @@ export type CanalOperatingBlock = {
   demandWeight: number;
   admissionPrice: number;
   supplementPrice: number;
+  sessionMaterialCost: number;
   admissions: number;
   specialSeats: number;
 };
@@ -71,6 +73,7 @@ export function buildCanalOperatingBlocks(
   const schedule = operatingPlan.effectiveSchedule;
   const openDays = Math.max(0, Math.min(7, Math.trunc(schedule.openDays)));
   const blocks: CanalOperatingBlock[] = [];
+  const sessionMaterialCost = previewProgram(snapshot.activeProgram).materialCost;
 
   for (let dayIndex = 0; dayIndex < openDays; dayIndex += 1) {
     for (const daypart of DAYPARTS) {
@@ -92,6 +95,7 @@ export function buildCanalOperatingBlocks(
         demandWeight,
         admissionPrice: snapshot.admissionPrice,
         supplementPrice: snapshot.activeProgram.supplementPrice,
+        sessionMaterialCost,
         admissions: 0,
         specialSeats: 0,
       });
