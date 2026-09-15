@@ -4,6 +4,8 @@
 
 Sauna Empire is a management game about building distinctive sauna venues, learning what local guests value, and growing from one modest operation into a respected multi-location sauna business. The player should feel that operational and creative choices become visible in the venue and in guest behavior, not only in financial tables.
 
+Before implementation, read `docs/decision-reconciliation-2026-09-15.md`, `PRODUCT_DECISIONS_2026-09-15.md` and the inherited `docs/decision-log.md`.
+
 ## Core loop
 
 1. Review venue performance, guests, staff, programs and finances.
@@ -21,9 +23,9 @@ Medium term: improve guest experience, create stronger programs, add facilities,
 
 Long term: operate multiple locations, build brand value and ranking, and choose when to keep, adapt or sell venues.
 
-The Empire reference build currently uses a victory target of eight owned locations, 1.5 million kr. empire value and average rating 4.25. This is an existing reference rule, not automatically final product balance.
+The Empire reference build currently uses a victory target of eight owned locations, 1.5 million kr. empire value and average rating 4.25. This is a reference rule, not automatically final product balance.
 
-## Canonical game time - LOCKED PRODUCT DECISION
+## Canonical game time - LOCKED
 
 **One in-game week equals 24 real hours.**
 
@@ -33,190 +35,217 @@ Consequences:
 - time progression is persistent and based on canonical timestamps;
 - the same elapsed real time must produce the same simulation result whether the app was open or closed;
 - construction, repairs, staff travel and other timed work continue against the same clock;
-- scoreboards or later competitive/ranking systems can compare players against the same fixed time base;
+- future scoreboards/ranking periods can compare players against the same fixed time base;
 - UI and rendering never invent or accelerate business time independently of the simulation;
-- development builds may provide debug time controls, but these are never part of production scoring.
+- debug builds may provide time controls, but these are not production gameplay/scoring.
 
-The existing `Run Week` behavior is a prototype/debug shortcut only and is not the final time design.
+The existing `Run Week` behavior is a prototype/debug shortcut only.
 
 ## Economy
 
-Existing implemented revenue sources:
+Existing implemented revenue sources include admission, paid premium/show Aufguss and shop sales. Approved/expected costs include venue/base operation, hourly wages, utilities/cleaning, program materials, shop procurement, facility operation, construction, maintenance/repair, training/equipment and loan repayments.
 
-- admission;
-- special Aufguss/Gus supplement;
-- shop sales.
+Rent/property economics, heating, electricity and water should be understandable operating drivers represented in the central economy model rather than scattered UI calculations.
 
-Existing implemented or designed costs:
+## Loans and insolvency - LOCKED STRUCTURE
 
-- venue/base operating costs;
-- staff wages;
-- utilities and cleaning;
-- program materials;
-- shop procurement;
-- facility operation;
-- construction;
-- maintenance and repair;
-- staff training/equipment;
-- loan repayments.
+Negative cash creates a factual financial-decision state.
 
-Design scope also includes rent/property economics, heating, electricity and water as understandable operating drivers. These should ultimately be represented in the central economy model rather than scattered UI calculations.
-
-## Loans and insolvency
-
-The Canal prototype has small, standard and large loan offers plus borrowing limits driven by built value and profitable operation. Negative cash creates a financial-decision state. The Empire reference build contains sustained insolvency/campaign-loss behavior.
-
-**OPEN DETAIL:** exact bankruptcy grace period, forced-sale rules, refinancing options and final interest model.
+- the player may use realistic available borrowing and venue-sale options;
+- there is no arbitrary fixed countdown;
+- automatic bankruptcy happens only at a financial settlement where due obligations cannot be paid and no realistic approved loan or venue-sale path remains;
+- voluntary bankruptcy remains possible;
+- exact interest rates, borrowing values and sale weights are balance data.
 
 ## Sauna sessions and capacity
 
-The game distinguishes ordinary sauna capacity from special Aufguss capacity. Special capacity is physical offer, while actual seats and occupancy describe delivered attendance. Program frequency must respect room time, staff and venue constraints.
+The game distinguishes ordinary sauna capacity from special Aufguss capacity. Program frequency must respect room time, available staff and venue constraints.
 
 The player creates reusable Aufguss programs using name, intent, heat profile, duration/format, aroma rounds, performance language, music direction, recovery finish, requested frequency and supplement price.
 
-Programs are evaluated through composition quality, execution quality and venue fit.
+Programs are evaluated through separate composition, execution and Venue Fit layers.
+
+A newly created or materially revised program receives a first-run review. Later quality is also visible through ordinary guest feedback and the more informed Steam Guide/editorial layer.
 
 ## Guests
 
-Current implemented guest simulation includes named weekly guest samples, age, visit goal, program fit, route, current stop, likes/dislikes, reaction and outcome.
-
 The intended lifecycle is:
 
-`discover -> decide -> arrive -> wait/enter -> sauna or Gus -> recovery/shop/rest -> leave -> remember/respond`
+`discover -> decide -> arrive -> wait/enter -> sauna or Aufguss -> recovery/shop/rest -> leave -> remember/respond`
 
-Guests should have individual preferences, value tolerance and queue tolerance. Appearance must not determine mechanical value or behavior.
+Guests have preferences, value tolerance and queue tolerance. Appearance must not determine mechanical value or behavior.
 
-Planned but not fully implemented:
+Use a bounded hybrid memory model:
 
-- stable guest memory;
-- regulars;
-- deeper local market preferences;
-- repeat visitation and loyalty over time.
+- most demand may be represented through population/market simulation;
+- each venue keeps a limited pool of identifiable persistent regulars;
+- regulars can retain limited factual memories, satisfaction and return/lapse history;
+- do not persist every simulated visitor forever.
 
 ## Satisfaction, loyalty and reviews
 
-Delivered experience determines satisfaction. Existing guest outcomes include satisfied, mixed, frustrated and aborted. Program delivery also creates structured evaluation.
+Delivered experience determines satisfaction. Feedback may identify concrete causes such as program quality, price/value, queues/capacity, staff/service, facilities or atmosphere.
 
-Local reputation, repeat visits and review/rating systems are intended to convert repeated guest outcomes into visible market consequences.
+Review channels serve different purposes:
 
-**OPEN DETAIL:** exact review frequency, rating aggregation, loyalty decay and public-review copy rules.
+- first-run Aufguss review diagnoses Composition, Execution and Venue Fit;
+- guest reviews/comments describe actual individual experiences;
+- Steam Guide/editorial observations provide a more informed craft/value/venue-fit perspective.
 
-## Staff
+Local reputation, repeat visits and loyalty translate repeated outcomes into market consequences. Exact probabilities and aggregation curves remain balance parameters.
 
-Existing concepts include Aufguss Masters with Heat, Aroma and Performance Craft, style strengths, wages, hiring fees and recruitment search, training, equipment, service/host staff, technicians and repairs.
+## Staff - LOCKED OPERATING MODEL
 
-Staff may automate routine delivery, but strategic choices remain with the player.
+The player hires and fires staff and sets venue opening hours. The player does **not** create detailed shift rotas.
 
-Planned but incomplete:
+- staff are automatically assigned across required opening hours;
+- staff are paid hourly for assigned work;
+- an Aufguss Master cannot deliver overlapping sessions;
+- a Master who remains assigned between two sessions is also paid for that in-between time;
+- exact minimum staffing requirements by venue size/facility mix are an implementation/balance question;
+- staff sickness, holidays, voluntary resignations and HR-drama systems are outside current scope.
 
-- robust rota/vagtplan system;
-- richer staff abilities/traits;
-- absence/fatigue if desired;
-- cross-venue staff movement.
+Longer opening hours increase potential demand but also labor and operating costs. Early 24/7 operation must not be an easy exploit. This is solved through daypart demand, minimum staffing, utilities/cleaning, market fit and physical capacity rather than an artificial unlock.
 
-**OPEN DETAIL:** exact scheduling granularity and which routine assignments should be automatically resolved.
+## Locations and site offers
 
-## Locations - product truth and generated content
+Expansion comes through generated site offers, not a world map where the player selects arbitrary cities.
 
-The repository contains proposed location families such as Canal, Harbour, Industrial, Forest Lake, Coast, Beach, Rural Plot, Water Plot, Urban Lot and Hotel Rooftop. These are useful design material, but **specific city names, market names and concrete locations generated by previous agents are not user-approved product decisions unless explicitly recorded as such.**
+The repository contains locked/proposed location families such as Canal, Harbour, Industrial District, Forest Lake, Coast, Beach, Rural Plot, Water Plot, Urban Lot and Hotel Rooftop. These are design families, not automatically real city names.
 
-A location supplies physical opportunities and constraints. It should not directly declare whether a concept is good or bad.
+Specific city names, venue names, neighbourhoods or market names generated by an agent are not canonical unless explicitly approved.
 
-The final location catalogue must be authored through explicit data and the Sauna Empire Content Studio, with provenance/status fields so every entry is clearly marked as one of:
+Every generated site must be viable under at least one sensible strategy. Affordability and attractiveness are separate dimensions.
 
-- APPROVED PRODUCT CONTENT
-- PROPOSED / AGENT SUGGESTION
-- LEGACY REFERENCE
-- TEST / PLACEHOLDER
+- starting offers remain realistically accessible from starting cash/responsible borrowing;
+- later offer batches may contain aspirational expensive sites;
+- every fresh batch must still contain at least one financially realistic path for the player's current stage;
+- no offer is an objective trap.
 
-No proposed city, venue or market name may silently become canonical content.
+### What makes a site attractive?
 
-## Buildings, sauna facilities and upgrades
+There is no exposed single attractiveness score. Important underlying dimensions include acquisition pressure, reachable demand, market fit, price sensitivity, daypart rhythm, starter-base usefulness, expansion potential, physical advantages, operating burden, destination/brand potential, seasonality and concept flexibility.
 
-Venue construction is modular rather than free tile-by-tile building. A venue consists of:
+The player sees concrete clues, not hidden raw scores.
 
-- location/environment;
-- one or more allowed start-building choices;
-- compatible purchasable modules;
-- upgrades that apply to a fixed/start building;
-- upgrades that apply to an added module;
-- location-specific modules or facilities;
-- shared outdoor kit where compatible;
-- route/activity/effect anchors.
+`Canal Workshop` is a prototype/reference composition, not a locked player-facing venue name. Native work should refer to it as the Canal reference slice unless discussing the old prototype itself.
 
-The content system must clearly distinguish:
+## Buildings, facilities and upgrades
 
-1. **Start buildings**: what can exist when the location is first acquired/opened.
-2. **Add-on modules**: new physical structures/facilities the player can purchase later.
-3. **Base-building upgrades**: upgrades to an existing start building.
-4. **Module upgrades**: upgrades to a purchased add-on.
-5. **Location-specific content**: only valid on one location or one explicit set of locations.
-6. **Shared content**: reusable only where compatibility rules allow it.
+Venue construction is modular rather than free tile-by-tile building.
 
-Facilities may include sauna rooms, showers, cold plunge, natural-water access, recovery areas, shop/service, deck/terrace and social/rest areas.
+The content model must clearly distinguish:
 
-## Sauna Empire Content Studio
+1. **Location**
+2. **Start Building**
+3. **Base-building Upgrade**
+4. **Add-on Module**
+5. **Module Upgrade**
+6. **Location-specific Module**
+7. **Shared Compatible Content**
 
-A dedicated internal Xcode/macOS content-authoring tool is part of the planned architecture. It must make location composition understandable to a non-programmer and prevent invalid combinations.
+A venue consists of location/environment, a legal starter base, compatible later modules/upgrades and authored route/activity/effect anchors.
 
-The Studio must:
+The player chooses what to build. Authored data controls where/how it can legally attach.
 
-- make hierarchy visually obvious: Location -> Start Building -> Add-on -> Upgrade;
-- show what is required, optional, incompatible, already occupied or location-specific;
-- allow placement of authored anchors, routes, walkable areas, activity points, effect points, masks and draw order;
-- preview placeholder assets before final art exists;
-- display capacity, economy and gameplay effects alongside visual placement;
-- validate that all required metadata exists;
-- explain validation errors in plain language;
-- offer AI-generated suggestions without applying them automatically;
-- mark every suggestion visibly as a suggestion until approved;
-- support duplicating a valid location/module as a starting template without inheriting inappropriate location-specific rules;
-- export deterministic, versioned content data consumed by the game;
-- never require manual Swift editing for ordinary location/module authoring.
+Upgrades should have explicit effects rather than hidden generic percentage bonuses. Each purchasable item defines compatibility, price, build time, capacity channels, operating impact, visual state and relevant routes/anchors.
 
-See `CONTENT_STUDIO.md` for the full specification.
+## Sauna Empire Content Studio - LOCKED PRODUCTION TOOL
 
-## Upgrades
+A dedicated internal macOS authoring tool in the Xcode workspace is part of the production architecture.
 
-Upgrades should have explicit effects rather than generic percentage bonuses hidden in code. Each upgrade should define compatibility, price, build time, capacity channels, operating impact, visual state and route/effect anchors where relevant.
+It must make the hierarchy and ownership of content immediately clear and allow a non-programmer to create/review locations without editing Swift.
+
+It must support:
+
+- Location -> Start Building -> Add-on -> Upgrade hierarchy;
+- location-owned versus building-owned content;
+- compatibility and attachment anchors;
+- routes/walkable areas/activity/effect points/masks/draw order;
+- placeholder assets before final art exists;
+- capacity/economy/gameplay metadata;
+- plain-language validation errors;
+- AI suggestions that remain clearly marked proposals until approved;
+- deterministic versioned export consumed by the game.
+
+See `CONTENT_STUDIO.md`.
+
+## Placeholder assets - APPROVED
+
+Final assets are not required before implementation.
+
+Placeholders may be used as long as they respect the same footprint, anchor, IDs and metadata contract as final art. Replacing art must not change simulation behavior.
 
 ## Progression
 
-Progression comes from stronger programs, better staff/equipment, improved facilities/capacity, higher local reputation, stronger finances/borrowing ability, additional venue opportunities, chain brand/ranking and eventual acquisition/sale decisions.
+Progression comes from stronger programs, better staff/equipment, improved facilities/capacity, higher local reputation, stronger finances/borrowing ability, additional venue opportunities, chain brand/ranking and acquisition/sale decisions.
 
-The player should not simply unlock a linear tech tree. Progression should involve trade-offs between concept, site, market, capacity and cost.
+Progression should not be a simple linear tech tree. Facilities should not be withheld behind arbitrary levels when the player has the money/borrowing capacity and a compatible site.
 
-## Trends and seasonal variation
+## Seasons and trends - APPROVED AUTOMATIC SYSTEMS
 
-Design documents reserve systems for seasons, operating-calendar fit, trends, novelty and saturation.
+Seasons use the shared canonical calendar and create bounded context rather than hard viability gates.
 
-**OPEN DETAIL:** final numerical curves and whether specific trend instances are global, regional or local.
+Trends are automatic simulation content:
 
-## Events
+- they emerge/spread gradually;
+- they may have local, regional or global reach depending on the trend;
+- yearly patterns should vary rather than repeat identically;
+- generation/spread must remain reproducible from canonical state/seed/time when required for saves and fair competition;
+- trends are signalled before material effects;
+- they never arbitrarily make a sound venue non-viable;
+- the player reacts to trends but does not maintain or curate them.
 
-Events can modify demand, market attention, staff/program opportunities or special operating conditions.
+Exact frequencies and numerical curves remain balance work.
 
-**OPEN DETAIL:** final event catalogue and frequency, not whether the system exists.
+## Events - NOT CURRENT CORE SCOPE
 
-## Subscriptions and merchandise
+Do not implement a general player-created event system or broad random world-event taxonomy now.
 
-The long-term product concept includes subscriptions/memberships and merchandise/shop revenue. A basic shop already exists in the Canal prototype.
+Seasonality, trends, press/reviews, market evolution and normal operations already provide changing conditions. A narrow future event feature may only be reconsidered if playtesting reveals a concrete gameplay need.
 
-**OPEN DETAIL:** exact membership products, churn numbers and merchandise catalogue.
+## Memberships / subscriptions - APPROVED SYSTEM
+
+Memberships are recurring products aimed primarily at guests who already fit and like the venue and expect repeated use.
+
+- monthly membership costs materially more than one single visit;
+- for frequent users it can be cheaper than repeated individual admissions;
+- adoption depends on satisfaction, repeat behavior, convenience/reach, opening-hour fit, price/value and capacity experience;
+- strong regulars are natural candidates;
+- memberships do not create demand independently of venue appeal;
+- overcrowding can lower member satisfaction and cause churn.
+
+Exact products, prices and churn curves are balance data.
+
+## Shop and merchandise
+
+Keep retail small and readable.
+
+- individual venues offer a small assortment;
+- replenishment is automatic;
+- broader catalogue should remain roughly maximum 10 meaningful product types;
+- branded merchandise is tied to genuine venue/program identity;
+- do not turn Sauna Empire into a retail inventory simulator.
 
 ## Brand, ratings and ranking
 
-Local delivered experience should drive local reputation. Chain Brand Value should give capped credibility/reach effects, never free capacity or guaranteed demand. Ranking is intended as a score layer that may rise or fall. The fixed game-time model is compatible with later fair scoreboards.
+Local delivered experience drives local reputation. Chain Brand Value has capped credibility/reach effects, never free capacity or guaranteed demand.
+
+Ranking is a separate comparison layer and does not alter local demand or create active local competitors.
+
+A future Empire Score should not be based only on cash. It may combine business value, quality/reputation, successful venue operation and portfolio/brand performance. The exact formula is deliberately deferred because it affects player incentives.
 
 ## Selling venues
 
-The long-term loop includes the ability to sell a sauna/location as part of empire strategy.
+The player can sell a sauna/venue.
 
-**OPEN DETAIL:** final sale valuation formula and transaction rules.
+Sale value should react to property/site value where relevant, installed investments, condition/wear, demonstrated performance, local reputation/brand contribution and associated debt/obligations.
+
+Staff do not automatically transfer with the sold venue. Reusable company knowledge and player-owned program IP remain with the chain unless a later explicit rule changes this.
 
 ## Progression between locations
 
-Each new venue should be locally meaningful, not a cloned production unit. The chain can transfer know-how, brand and selected reusable assets while the new site still has its own market fit, physical constraints, costs and guest behavior.
+Each new venue should be locally meaningful, not a cloned production unit. The chain can transfer know-how, brand and selected reusable assets while the new site retains its own market fit, physical constraints, costs and guest behavior.
 
 ## Design principle
 
