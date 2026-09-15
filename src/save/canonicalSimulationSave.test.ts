@@ -35,6 +35,44 @@ describe("canonical simulation save", () => {
     expect(resumed).toEqual(direct);
   });
 
+  it("persists settled midweek blocks so resume cannot replay revenue, cost or wear", () => {
+    const start = 30_000;
+    const midweek = start + REAL_MS_PER_GAME_WEEK * 0.55;
+    const end = start + REAL_MS_PER_GAME_WEEK;
+    const initial = createCanonicalCanalEnvelope(
+      {
+        ...initialState,
+        built: ["program" as const],
+        condition: { program: 100 },
+        masterHired: true,
+        master: {
+          name: "Save Test Master",
+          style: "Traditional" as const,
+          heatCraft: 3,
+          aromaCraft: 3,
+          performanceCraft: 2,
+          weeklyWage: 500,
+          equipment: [],
+        },
+      },
+      start,
+      91,
+    );
+
+    const partial = advanceCanalSimulation(initial, midweek).envelope;
+    expect(partial.operatingRuntime?.settledBlockKeys.length).toBeGreaterThan(0);
+    expect(partial.cash).not.toBe(initial.world.cash);
+    expect(partial.world.condition.program).toBeLessThan(100);
+
+    const serialized = exportCanonicalSimulationSave(partial);
+    const restored = importCanonicalSimulationSave(serialized);
+    expect(restored?.operatingRuntime).toEqual(partial.operatingRuntime);
+
+    const resumed = resumeCanonicalSimulationSave(serialized, end);
+    const continuous = advanceCanalSimulation(partial, end);
+    expect(resumed).toEqual(continuous);
+  });
+
   it("migrates an existing compatible browser save without fabricating offline time", () => {
     const legacy = exportSave({ ...initialState, venueName: "Old Canal", cash: 6_200 });
     const migrated = migrateLegacyGameSaveToCanonical(legacy, 123_456, 17);
