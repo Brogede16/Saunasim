@@ -48,6 +48,42 @@ describe("Canal block economy", () => {
     expect(summarizeCanalBlockEconomy(allocated).revenueBreakdown.admissions).not.toBe(999_999);
   });
 
+  it("calculates canonical Gus revenue directly from Special Gus seats and supplement price", () => {
+    const master = {
+      name: "Revenue Master",
+      style: "Traditional" as const,
+      heatCraft: 3,
+      aromaCraft: 3,
+      performanceCraft: 2,
+      weeklyWage: 500,
+      equipment: [],
+    };
+    const snapshot = {
+      ...initialState,
+      masterHired: true,
+      master,
+      activeProgram: { ...initialState.activeProgram, supplementPrice: 9 },
+    };
+    const plan = planCanalOperations(snapshot);
+    const blocks = buildCanalOperatingBlocks(snapshot, plan);
+    const allocated = allocateCanalBlockEconomy(blocks, {
+      revenueBreakdown: { admissions: 999_999, specialGus: 999_999, shop: 0 },
+      costBreakdown: {
+        venueBase: 0,
+        staff: 0,
+        utilitiesAndCleaning: 0,
+        programMaterials: 0,
+        shopProcurement: 0,
+        facilities: 0,
+      },
+    });
+    const summary = summarizeCanalBlockEconomy(allocated);
+    const expected = blocks.reduce((total, block) => total + block.specialSeats * block.supplementPrice, 0);
+
+    expect(summary.revenueBreakdown.specialGus).toBe(expected);
+    expect(summary.revenueBreakdown.specialGus).not.toBe(999_999);
+  });
+
   it("places Gus revenue and material cost only in blocks with scheduled Gus when such blocks exist", () => {
     const master = {
       name: "Test Master",
@@ -65,7 +101,7 @@ describe("Canal block economy", () => {
       activeProgram: { ...initialState.activeProgram, requestedSessions: 3 },
     };
     const plan = planCanalOperations(snapshot);
-    const blocks = buildCanalOperatingBlocks(snapshot, plan, { specialSeats: 18 });
+    const blocks = buildCanalOperatingBlocks(snapshot, plan);
     const allocated = allocateCanalBlockEconomy(blocks, {
       revenueBreakdown: { admissions: 1_440, specialGus: 126, shop: 0 },
       costBreakdown: {
