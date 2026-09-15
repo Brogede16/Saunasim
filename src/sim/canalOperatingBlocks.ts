@@ -14,6 +14,7 @@ export type CanalOperatingBlock = {
   openHours: number;
   scheduledAufguss: number;
   demandWeight: number;
+  admissionPrice: number;
   admissions: number;
   specialSeats: number;
 };
@@ -95,6 +96,7 @@ export function buildCanalOperatingBlocks(
         openHours,
         scheduledAufguss,
         demandWeight,
+        admissionPrice: snapshot.admissionPrice,
         admissions: 0,
         specialSeats: 0,
       });
