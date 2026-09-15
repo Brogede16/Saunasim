@@ -4,7 +4,7 @@ import { planCanalOperations } from "./canalOperatingPlan";
 import { buildCanalOperatingBlocks, summarizeCanalOperatingBlocks } from "./canalOperatingBlocks";
 
 describe("Canal operating blocks", () => {
-  it("preserves weekly admissions and Gus seats exactly while placing them in time", () => {
+  it("preserves weekly admissions and Gus seats exactly in explicit legacy-allocation mode", () => {
     const snapshot = {
       ...initialState,
       masterHired: true,
@@ -20,7 +20,7 @@ describe("Canal operating blocks", () => {
       activeProgram: { ...initialState.activeProgram, requestedSessions: 4 },
     };
     const plan = planCanalOperations(snapshot);
-    const blocks = buildCanalOperatingBlocks(snapshot, plan, { admissions: 70, specialSeats: 28 });
+    const blocks = buildCanalOperatingBlocks(snapshot, plan, { admissions: 70, specialSeats: 28 }, "legacy-allocation");
     const summary = summarizeCanalOperatingBlocks(blocks);
 
     expect(summary.admissions).toBe(70);
@@ -55,17 +55,19 @@ describe("Canal operating blocks", () => {
       activeProgram: { ...social.activeProgram, intent: "Quiet Recovery" as const },
     };
 
-    const socialBlocks = buildCanalOperatingBlocks(social, planCanalOperations(social), { admissions: 100, specialSeats: 18 });
-    const quietBlocks = buildCanalOperatingBlocks(quiet, planCanalOperations(quiet), { admissions: 100, specialSeats: 18 });
+    const socialBlocks = buildCanalOperatingBlocks(social, planCanalOperations(social), { admissions: 100, specialSeats: 18 }, "legacy-allocation");
+    const quietBlocks = buildCanalOperatingBlocks(quiet, planCanalOperations(quiet), { admissions: 100, specialSeats: 18 }, "legacy-allocation");
     const eveningAdmissions = (blocks: typeof socialBlocks) => blocks.filter((b) => b.daypart === "evening").reduce((t, b) => t + b.admissions, 0);
 
     expect(eveningAdmissions(socialBlocks)).toBeGreaterThan(eveningAdmissions(quietBlocks));
   });
 
-  it("is deterministic", () => {
+  it("uses native admissions by default and remains deterministic", () => {
     const plan = planCanalOperations(initialState);
     const first = buildCanalOperatingBlocks(initialState, plan, { admissions: 31, specialSeats: 0 });
-    const second = buildCanalOperatingBlocks(initialState, plan, { admissions: 31, specialSeats: 0 });
+    const second = buildCanalOperatingBlocks(initialState, plan, { admissions: 999, specialSeats: 0 });
     expect(second).toEqual(first);
+    expect(summarizeCanalOperatingBlocks(first).admissions).not.toBe(31);
+    expect(summarizeCanalOperatingBlocks(second).admissions).not.toBe(999);
   });
 });
