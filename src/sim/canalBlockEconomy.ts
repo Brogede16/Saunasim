@@ -1,7 +1,7 @@
 import type { WeekReport } from "./canalBalance";
 import type { CanalOperatingBlock } from "./canalOperatingBlocks";
 
-export type CanalEconomyMode = "native-admissions" | "legacy-allocation";
+export type CanalEconomyMode = "native-guest-revenue" | "legacy-allocation";
 
 export type CanalBlockEconomy = CanalOperatingBlock & {
   revenue: {
@@ -39,19 +39,22 @@ function allocateAmount<T>(items: T[], total: number, weightOf: (item: T) => num
 /**
  * Places operating economy into the blocks that caused it.
  *
- * Native ordinary admission revenue is canonical: each block owns admissions x the ticket price
- * captured in that block. Remaining categories still conserve the weekly reference while they
- * await their own migration slices. Explicit legacy-allocation mode exists only for parity tests.
+ * Native guest revenue is canonical: each block owns ordinary admissions x ticket price and
+ * Special Gus seats x supplement price captured in that block. Shop revenue and operating-cost
+ * categories still conserve the weekly reference while they await their own migration slices.
+ * Explicit legacy-allocation mode exists only for migration/parity tests.
  */
 export function allocateCanalBlockEconomy(
   blocks: CanalOperatingBlock[],
   ledger: Pick<WeekReport, "revenueBreakdown" | "costBreakdown">,
-  mode: CanalEconomyMode = "native-admissions",
+  mode: CanalEconomyMode = "native-guest-revenue",
 ): CanalBlockEconomy[] {
   const admissionRevenue = mode === "legacy-allocation"
     ? allocateAmount(blocks, ledger.revenueBreakdown.admissions, (block) => block.admissions)
     : blocks.map((block) => Math.round(block.admissions * block.admissionPrice * 100) / 100);
-  const specialRevenue = allocateAmount(blocks, ledger.revenueBreakdown.specialGus, (block) => block.specialSeats);
+  const specialRevenue = mode === "legacy-allocation"
+    ? allocateAmount(blocks, ledger.revenueBreakdown.specialGus, (block) => block.specialSeats)
+    : blocks.map((block) => Math.round(block.specialSeats * block.supplementPrice * 100) / 100);
   const shopRevenue = allocateAmount(blocks, ledger.revenueBreakdown.shop, (block) => block.admissions);
 
   const venueBase = allocateAmount(blocks, ledger.costBreakdown.venueBase, (block) => block.openHours);
