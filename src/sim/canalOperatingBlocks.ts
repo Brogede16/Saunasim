@@ -18,6 +18,7 @@ export type CanalOperatingBlock = {
   admissionPrice: number;
   supplementPrice: number;
   sessionMaterialCost: number;
+  staffCost: number;
   admissions: number;
   specialSeats: number;
 };
@@ -64,6 +65,18 @@ function allocateIntegerTotal<T>(items: T[], total: number, weightOf: (item: T) 
   return allocated;
 }
 
+function allocateMoney<T>(items: T[], total: number, weightOf: (item: T) => number) {
+  if (items.length === 0) return [] as number[];
+  if (total === 0) return items.map(() => 0);
+  const weights = items.map((item) => Math.max(0, weightOf(item)));
+  const sum = weights.reduce((a, b) => a + b, 0);
+  if (sum <= 0) return items.map((_, index) => index === 0 ? total : 0);
+  const result = weights.map((weight) => Math.round(((total * weight) / sum) * 100) / 100);
+  const residual = Math.round((total - result.reduce((a, b) => a + b, 0)) * 100) / 100;
+  result[result.length - 1] = Math.round((result[result.length - 1] + residual) * 100) / 100;
+  return result;
+}
+
 export function buildCanalOperatingBlocks(
   snapshot: GameState,
   operatingPlan: CanalOperatingPlan,
@@ -96,11 +109,21 @@ export function buildCanalOperatingBlocks(
         admissionPrice: snapshot.admissionPrice,
         supplementPrice: snapshot.activeProgram.supplementPrice,
         sessionMaterialCost,
+        staffCost: 0,
         admissions: 0,
         specialSeats: 0,
       });
     }
   }
+
+  const staffCosts = allocateMoney(
+    blocks,
+    operatingPlan.staffWage,
+    (block) => block.openHours + block.scheduledAufguss,
+  );
+  blocks.forEach((block, index) => {
+    block.staffCost = staffCosts[index] ?? 0;
+  });
 
   const admissionAllocations = admissionMode === "legacy-allocation" && ledger?.admissions !== undefined
     ? allocateIntegerTotal(blocks, ledger.admissions, (block) => block.demandWeight)
@@ -131,5 +154,6 @@ export function summarizeCanalOperatingBlocks(blocks: CanalOperatingBlock[]) {
     admissions: blocks.reduce((total, block) => total + block.admissions, 0),
     specialSeats: blocks.reduce((total, block) => total + block.specialSeats, 0),
     scheduledAufguss: blocks.reduce((total, block) => total + block.scheduledAufguss, 0),
+    staffCost: Math.round(blocks.reduce((total, block) => total + block.staffCost, 0) * 100) / 100,
   };
 }
