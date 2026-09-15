@@ -61,7 +61,7 @@ describe("canonical simulation save", () => {
 
     const partial = advanceCanalSimulation(initial, midweek).envelope;
     expect(partial.operatingRuntime?.settledBlockKeys.length).toBeGreaterThan(0);
-    expect(partial.cash).not.toBe(initial.world.cash);
+    expect(partial.world.cash).not.toBe(initial.world.cash);
     expect(partial.world.condition.program).toBeLessThan(100);
 
     const serialized = exportCanonicalSimulationSave(partial);
