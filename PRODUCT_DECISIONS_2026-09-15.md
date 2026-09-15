@@ -17,12 +17,66 @@ The staff system must remain simple to operate.
 
 - The player hires and fires staff.
 - The player chooses venue opening hours.
-- Staff are automatically assigned across the venue's opening hours according to the roles/capacity required for operation.
+- Venue staff are automatically assigned across the venue's opening hours according to the roles and coverage required for operation.
 - The player does not build a detailed shift rota.
 - Staff are paid by the hour for the hours they are assigned/working.
 - An Aufguss Master cannot conduct two overlapping Aufguss sessions.
 - If a Master is assigned for a continuous working period containing multiple sessions, the Master is paid for the time between those sessions as well. The game must not treat only active session minutes as paid work.
 - No sickness, holiday, resignation or other personnel-absence simulation is required at this stage.
+
+### Venue staffing logic
+
+Minimum staffing should be driven by **functions + operating load**, not one universal ratio such as one employee per 25 guests.
+
+Examples of staffing drivers:
+
+- reception/entry function;
+- shop/cafe/service function when it can no longer sensibly be covered by reception;
+- guest-flow/service burden from higher attendance and more facilities;
+- active Aufguss sessions;
+- venue size/complexity where that creates genuinely more operational work.
+
+The simulation determines the required coverage for each opening period and automatically uses eligible hired venue staff.
+
+If coverage is insufficient, the player must be shown the concrete consequence. Depending on the missing role/function this can mean reduced service quality, lower usable capacity, unavailable service, or inability to run a planned session. Do not hide understaffing as an unexplained demand penalty.
+
+### Staffing overview
+
+The game needs a clear staffing overview at both venue and chain level.
+
+For each venue it should show, in plain language:
+
+- hired venue staff;
+- expected staffing need for the selected opening hours;
+- current coverage by role/function;
+- any uncovered periods or functions;
+- estimated wage cost;
+- Aufguss Master coverage for planned sessions;
+- warnings such as `Reception not covered 06:00-08:00` or `No available Master for 19:00 Aufguss`.
+
+The player should be able to understand whether a venue is adequately staffed without opening a detailed timetable.
+
+### Venue staff versus chain employees
+
+Do not model all employees as permanently belonging to one venue.
+
+Two scopes exist:
+
+1. **Venue staff** - reception/service/shop staff and Aufguss Masters used in normal operation at one venue or assigned to a venue for a period.
+2. **Chain employees** - roles serving the company across multiple venues.
+
+Existing approved chain-level examples include technicians and later operations/management roles.
+
+Technicians:
+
+- are hired by the chain, not permanently by one venue;
+- can travel between venues;
+- can hold only one active technical job at a time;
+- create a visible chain-wide service capacity;
+- incur wages and relevant travel/material costs;
+- should appear in the chain staffing overview separately from ordinary venue coverage.
+
+Future chain roles must have a concrete function. Do not add generic percentage-bonus management staff without an explicit operational responsibility.
 
 ### 24/7 operating balance
 
@@ -132,6 +186,17 @@ Expansion should not use a linear level gate.
 - The offer generator must always include at least one financially realistic path for the player at the relevant stage, even if that offer is less attractive than expensive alternatives.
 - An offer may be affordable but less attractive; affordability and attractiveness are different dimensions.
 
+### Offer batch behavior
+
+- The normal expansion surface presents three site offers at a time.
+- The three offers should represent meaningfully different trade-offs rather than three near-duplicates.
+- At least one offer in a generated batch must be realistically financeable for the player's current stage through cash and/or responsible available borrowing.
+- Financeable does not mean best. The affordable option may have lower demand, smaller expansion potential, weaker premium potential, higher operating burden relative to revenue, or fewer distinctive physical advantages.
+- The other offers may be aspirational/more expensive when they are still plausible opportunities.
+- Current offers remain available until the player acquires one or deliberately triggers a new broker search according to the approved broker-search rules.
+- A new broker search replaces the batch rather than rerolling one individual slot repeatedly.
+- Offer generation must use approved content definitions and compatibility rules; it must not invent new canonical locations/buildings at runtime.
+
 ### What makes a site attractive?
 
 There is no single player-visible `attractiveness score`. A site is attractive relative to the player's strategy and price.
@@ -175,3 +240,19 @@ A future competitive scoreboard can use the fixed canonical time model.
 Do not rank only by cash. A broader Empire Score can later combine business value, quality/reputation, successful venue operation and brand/portfolio performance. The exact formula remains a later balance decision because it will shape player incentives.
 
 Competitive/ranking scoring must stay separate from local guest demand and must not create active rival interference in a player's local market.
+
+## 13. Automatic Aufguss scheduling
+
+Aufguss scheduling must stay simple for the player.
+
+- The player chooses which programs are active and how many sessions should run within the chosen operating pattern.
+- The player does not manually place every session on a detailed minute-by-minute calendar.
+- The scheduler automatically places sessions within venue opening hours.
+- It should prefer sensible high-demand/appropriate periods while respecting room availability, program duration, recovery consequences, capacity and Master availability.
+- One Master cannot run overlapping sessions.
+- Multiple rooms may run simultaneous sessions only when different available Masters and physical capacity make that legal.
+- A Master assigned across multiple nearby sessions is paid for the continuous working period, including paid time between sessions.
+- If the requested program count cannot be scheduled legally, the game must show the reason clearly and reduce/flag the unscheduled sessions rather than silently double-booking resources.
+- The schedule may be previewed in a simple human-readable form, but detailed rota/calendar editing is not required.
+
+This automatic scheduler is a deterministic simulation service, not UI logic.
