@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { REAL_MS_PER_GAME_WEEK } from "./canonicalTime";
 import { advanceCanalSimulation, createCanonicalCanalEnvelope } from "./canalRealtime";
+import { calculateCanalPeriodCosts } from "./canalPeriodCosts";
 import { initialState } from "./game";
 
 type OperatingBlockEventDetail = {
@@ -25,7 +26,7 @@ function money(value: number) {
 }
 
 describe("canonical Canal operating events", () => {
-  it("emits time-stamped operating blocks whose traffic and economy reduce to the weekly report", () => {
+  it("emits time-stamped blocks and reconciles them with fixed period obligations", () => {
     const start = 1_000_000;
     const master = {
       name: "Test Master",
@@ -50,6 +51,7 @@ describe("canonical Canal operating events", () => {
     const blocks = result.events.filter((event) => event.type === "operating-block-settled");
     const settlement = result.events.at(-1);
     const report = result.envelope.world.lastReport!;
+    const periodCosts = calculateCanalPeriodCosts(state);
 
     expect(blocks.length).toBeGreaterThan(0);
     expect(settlement?.type).toBe("game-week-settled");
@@ -60,11 +62,11 @@ describe("canonical Canal operating events", () => {
     expect(parsed.some((block) => (block.scheduledAufguss ?? 0) > 0)).toBe(true);
 
     const revenue = money(parsed.reduce((total, block) => total + (block.revenue?.total ?? 0), 0));
-    const operatingCosts = money(parsed.reduce((total, block) => total + (block.costs?.total ?? 0), 0));
+    const variableOperatingCosts = money(parsed.reduce((total, block) => total + (block.costs?.total ?? 0), 0));
     const operatingNet = money(parsed.reduce((total, block) => total + (block.operatingNet ?? 0), 0));
     expect(revenue).toBe(report.revenue);
-    expect(operatingCosts).toBe(report.operatingCosts);
-    expect(operatingNet).toBe(money(report.netResult + report.loanRepayment));
+    expect(variableOperatingCosts).toBe(money(report.operatingCosts - periodCosts.total));
+    expect(operatingNet).toBe(money(report.netResult + report.loanRepayment + periodCosts.total));
   });
 
   it("mutates cash, condition and runtime before the weekly report is published", () => {
