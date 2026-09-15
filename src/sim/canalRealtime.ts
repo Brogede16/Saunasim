@@ -14,6 +14,7 @@ import { createRngState, type RngState } from "./deterministicRng";
 import { planCanalOperations } from "./canalOperatingPlan";
 import { buildCanalOperatingBlocks } from "./canalOperatingBlocks";
 import { allocateCanalBlockEconomy } from "./canalBlockEconomy";
+import { calculateCanalPeriodCosts } from "./canalPeriodCosts";
 import {
   emptyOperatingWeekRuntime,
   operatingBlockKey,
@@ -282,15 +283,22 @@ function sumCosts(breakdown: WeekReport["costBreakdown"]) {
 }
 
 function reportFromCompletedBlocks(snapshot: RuntimeGameState, runtime: OperatingWeekRuntime): WeekReport {
+  const periodCosts = calculateCanalPeriodCosts(snapshot);
+  const costBreakdown: WeekReport["costBreakdown"] = {
+    ...runtime.accruedCostBreakdown,
+    venueBase: money(runtime.accruedCostBreakdown.venueBase + periodCosts.venueBase),
+    utilitiesAndCleaning: money(runtime.accruedCostBreakdown.utilitiesAndCleaning + periodCosts.utilitiesAndCleaning),
+    facilities: money(runtime.accruedCostBreakdown.facilities + periodCosts.facilities),
+  };
   const revenue = sumRevenue(runtime.accruedRevenueBreakdown);
-  const operatingCosts = sumCosts(runtime.accruedCostBreakdown);
+  const operatingCosts = sumCosts(costBreakdown);
   const loanRepayment = snapshot.loans.reduce((total, loan) => total + loan.weeklyPayment, 0);
   return {
     ...runtime.plannedReport,
     admissions: runtime.accruedAdmissions,
     specialSeats: runtime.accruedSpecialSeats,
     revenueBreakdown: runtime.accruedRevenueBreakdown,
-    costBreakdown: runtime.accruedCostBreakdown,
+    costBreakdown,
     revenue,
     operatingCosts,
     loanRepayment,
@@ -302,10 +310,10 @@ function reportFromCompletedBlocks(snapshot: RuntimeGameState, runtime: Operatin
  * Finalises the canonical game week after its operating blocks have already happened.
  *
  * Cash and facility wear from settled blocks are not applied twice here. The financial report is
- * reduced from the completed blocks; the old planned report only supplies not-yet-migrated detail
- * such as guest snapshots, queue notes and programme-review copy. The boundary owns period-only
- * consequences: loan repayment, report publication, programme reveal, profitability, debt ageing
- * and financial-distress evaluation.
+ * reduced from completed blocks plus explicit fixed period obligations. The old planned report only
+ * supplies not-yet-migrated detail such as guest snapshots, queue notes and programme-review copy.
+ * The boundary owns fixed obligations, loan repayment, report publication, programme reveal,
+ * profitability, debt ageing and financial-distress evaluation.
  */
 export function settleLegacyCanalGameWeek(snapshot: RuntimeGameState): RuntimeGameState {
   if (snapshot.financialDecisionPending) return snapshot;
