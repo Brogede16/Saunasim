@@ -1,6 +1,8 @@
 import type { WeekReport } from "./canalBalance";
 import type { CanalOperatingBlock } from "./canalOperatingBlocks";
 
+export type CanalEconomyMode = "native-admissions" | "legacy-allocation";
+
 export type CanalBlockEconomy = CanalOperatingBlock & {
   revenue: {
     admissions: number;
@@ -37,19 +39,18 @@ function allocateAmount<T>(items: T[], total: number, weightOf: (item: T) => num
 /**
  * Places operating economy into the blocks that caused it.
  *
- * When admissionPrice is supplied, ordinary admission revenue is now native block economy:
- * block admissions x player price. Other categories still conserve the weekly reference while
- * they await their own migration slices. Omitting admissionPrice preserves the old pure-allocation
- * mode for migration tests.
+ * Native ordinary admission revenue is canonical: each block owns admissions x the ticket price
+ * captured in that block. Remaining categories still conserve the weekly reference while they
+ * await their own migration slices. Explicit legacy-allocation mode exists only for parity tests.
  */
 export function allocateCanalBlockEconomy(
   blocks: CanalOperatingBlock[],
   ledger: Pick<WeekReport, "revenueBreakdown" | "costBreakdown">,
-  admissionPrice?: number,
+  mode: CanalEconomyMode = "native-admissions",
 ): CanalBlockEconomy[] {
-  const admissionRevenue = admissionPrice === undefined
+  const admissionRevenue = mode === "legacy-allocation"
     ? allocateAmount(blocks, ledger.revenueBreakdown.admissions, (block) => block.admissions)
-    : blocks.map((block) => Math.round(block.admissions * admissionPrice * 100) / 100);
+    : blocks.map((block) => Math.round(block.admissions * block.admissionPrice * 100) / 100);
   const specialRevenue = allocateAmount(blocks, ledger.revenueBreakdown.specialGus, (block) => block.specialSeats);
   const shopRevenue = allocateAmount(blocks, ledger.revenueBreakdown.shop, (block) => block.admissions);
 
