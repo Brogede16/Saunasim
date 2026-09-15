@@ -2,7 +2,9 @@
 
 ## Status
 
-Wave 1 has started. This file records executable progress only; it is not a design substitute for `MECHANICS.md` or `docs/simulation-contract-v0.1.md`.
+Wave 1 is actively implemented. This file records executable progress only; it is not a design substitute for `MECHANICS.md` or `docs/simulation-contract-v0.1.md`.
+
+The foundation now has a canonical clock, deterministic RNG, a generic headless advance engine, a Canal/GameState adapter, portable canonical saves and online/offline equivalence tests. The application UI still uses the legacy store path; replacing production `Run Week` usage is a remaining integration step.
 
 ## Implemented in code
 
@@ -26,13 +28,13 @@ Wave 1 has started. This file records executable progress only; it is not a desi
 - bounded deterministic integer generation;
 - stable named child streams for future guest/trend/system isolation.
 
-This is infrastructure only. Existing gameplay systems still contain legacy deterministic formulas and must be migrated deliberately rather than silently rewritten.
+Existing gameplay systems still contain legacy deterministic formulas and are migrated deliberately rather than silently rewritten.
 
 ### Canonical advance engine
 
 `src/sim/simulationEngine.ts`
 
-A generic headless `advanceSimulation(envelope, to, adapter)` engine now exists with explicit boundaries for:
+A generic headless `advanceSimulation(envelope, to, adapter)` engine exists with explicit boundaries for:
 
 - ordinary operating intervals;
 - real-time milestones such as construction/repair/travel completion;
@@ -44,6 +46,39 @@ A generic headless `advanceSimulation(envelope, to, adapter)` engine now exists 
 At an identical timestamp, real-time milestones resolve before weekly settlement, matching the canonical simulation contract.
 
 The engine contains no React, Phaser, DOM or rendering dependency.
+
+### Canal/GameState realtime bridge
+
+`src/sim/canalRealtime.ts`
+
+The existing Canal reference state can now run inside a `SimulationEnvelope<GameState>`.
+
+Implemented bridge behaviour:
+
+- construction completion is a real-time milestone;
+- technician repair completion is a real-time milestone;
+- Master recruitment/search completion is a real-time milestone;
+- multiple milestones are resolved chronologically;
+- the current proven Canal weekly result is resolved at canonical game-week boundaries;
+- weekly settlement is a pure GameState transition rather than UI-driven time;
+- one long offline advance and repeated online advances share the exact same simulation path.
+
+Important limitation: ordinary venue operations still settle through the legacy weekly aggregate at the weekly boundary. Wave 2 will replace that aggregate with finer operating blocks for staffing, scheduling, demand, guest movement and hourly costs. The realtime bridge is therefore canonical infrastructure, not the final continuous operating model.
+
+### Portable canonical simulation save
+
+`src/save/canonicalSimulationSave.ts`
+
+Wave 1 now has a versioned portable envelope containing:
+
+- `startedAt`;
+- `lastSimulatedAt`;
+- deterministic RNG state;
+- validated existing browser GameState save data.
+
+A compatible legacy browser save can be migrated into the canonical envelope at a chosen migration timestamp. Migration intentionally sets both canonical timestamps to that instant, so it never fabricates historical offline progress for an old save that did not previously track canonical simulation time.
+
+The portable envelope is the bridge format for parity fixtures and later Swift tests. The existing IndexedDB autosave has deliberately not yet been destructively schema-migrated; that happens only when the application runtime itself switches to canonical advancement.
 
 ## Tests added
 
@@ -62,6 +97,14 @@ The engine contains no React, Phaser, DOM or rendering dependency.
   - milestone-before-week-settlement ordering;
   - zero-time no-op;
   - backwards advance rejection.
+- `src/sim/canalRealtime.test.ts`
+  - 24-hour offline jump equals four six-hour online advances for full canonical Canal state;
+  - construction finishing at a weekly boundary resolves before settlement;
+  - repair and recruitment milestones complete without waiting for a game week.
+- `src/save/canonicalSimulationSave.test.ts`
+  - canonical time/RNG/GameState round-trip;
+  - resume-from-save equals direct continuous advance;
+  - compatible legacy save migration starts canonical time without invented catch-up.
 - `src/sim/fixtures/canal-baseline-v1.json` + `baselineFixtures.test.ts`
   - first portable browser-to-Swift fixture locks the proven Canal starter ledger so native work has an executable reference rather than prose only.
 
@@ -74,19 +117,30 @@ The engine contains no React, Phaser, DOM or rendering dependency.
 
 This preserves the broader Empire reference tests instead of suppressing them.
 
-## Not yet implemented
+## What Wave 1 now proves
 
-Do **not** mark canonical real-time gameplay or offline catch-up complete yet.
+For the adapted Canal reference, the canonical engine can prove:
 
-The following remains next:
+`same initial GameState + same canonical origin + same RNG + same elapsed time = same canonical state`
 
-1. adapt the existing `GameState`/Canal mechanics to `SimulationEnvelope`;
-2. persist `startedAt`, `lastSimulatedAt` and deterministic RNG state in saves with migration/defaulting;
-3. replace production reliance on `gameStore.advanceWeek()` with canonical timestamp advancement;
-4. resolve construction/repair/search milestones through the new engine rather than ad-hoc `Date.now()` calls;
-5. move the current weekly Canal operating result behind a pure adapter and then deepen it into smaller operating blocks;
-6. prove actual Canal cash, visits, debt, wear and reports are identical for equivalent online/offline elapsed time;
-7. expand portable fixtures for staffing, Aufguss scheduling, construction, repair, debt and negative-cash boundaries.
+whether elapsed time is advanced in one offline jump or multiple online chunks.
+
+The equality currently covers the existing weekly mechanics and real-time construction/repair/recruitment milestones. It does not yet claim that minute/hour-level guest operations exist; those belong to Wave 2.
+
+## Remaining Wave 1 work
+
+Do **not** mark the entire production realtime migration complete yet.
+
+Remaining integration work:
+
+1. move the application runtime/store from production reliance on `gameStore.advanceWeek()` to canonical timestamp advancement;
+2. migrate the IndexedDB autosave envelope to persist canonical metadata directly, with backward-compatible migration;
+3. remove ad-hoc production `Date.now()` resolution paths once the store is fully behind the canonical engine;
+4. centralize remaining foundation balance/config values that still live inside the old monolith;
+5. add a stable domain report/event boundary consumed by UI rather than UI reading transient simulation internals;
+6. expand portable fixtures around debt/negative-cash boundaries and other Wave 1 foundation cases.
+
+Wave 2 then owns continuous operating blocks: opening state, automatic staff coverage, hourly wages, automatic Aufguss scheduling, demand, visits/capacity, revenue/cost/wear and feedback/reputation.
 
 ## Migration principle
 
