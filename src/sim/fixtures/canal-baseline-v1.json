@@ -1,0 +1,19 @@
+{
+  "fixtureVersion": 1,
+  "name": "canal-starter-master-default-week",
+  "purpose": "Portable browser-to-Swift reference fixture. Preserve current proven Canal ledger behavior while the canonical real-time engine replaces Run Week.",
+  "input": {
+    "cash": 3350,
+    "built": [],
+    "masterHired": true,
+    "admissionPrice": 24
+  },
+  "expected": {
+    "admissions": 70,
+    "specialSeats": 14,
+    "shopSales": 0,
+    "revenue": 1778,
+    "operatingCosts": 1235,
+    "netResult": 543
+  }
+}
