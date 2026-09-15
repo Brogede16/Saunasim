@@ -84,7 +84,7 @@ describe("Canal block economy", () => {
     expect(summary.revenueBreakdown.specialGus).not.toBe(999_999);
   });
 
-  it("places Gus revenue and material cost only in blocks with scheduled Gus when such blocks exist", () => {
+  it("charges materials only for actual scheduled Gus sessions and ignores the weekly oracle", () => {
     const master = {
       name: "Test Master",
       style: "Traditional" as const,
@@ -108,12 +108,19 @@ describe("Canal block economy", () => {
         venueBase: 400,
         staff: 45,
         utilitiesAndCleaning: 312,
-        programMaterials: 75,
+        programMaterials: 9_999,
         shopProcurement: 0,
         facilities: 0,
       },
     });
+    const summary = summarizeCanalBlockEconomy(allocated);
+    const expectedMaterials = blocks.reduce(
+      (total, block) => total + block.scheduledAufguss * block.sessionMaterialCost,
+      0,
+    );
 
+    expect(summary.costBreakdown.programMaterials).toBe(expectedMaterials);
+    expect(summary.costBreakdown.programMaterials).not.toBe(9_999);
     expect(allocated.filter((block) => block.scheduledAufguss === 0).every((block) => block.revenue.specialGus === 0 && block.costs.programMaterials === 0)).toBe(true);
   });
 });
