@@ -53,7 +53,9 @@ try {
   const arrivalCard = page.locator(".build-card").filter({ hasText: "Renovated Entrance Sign" });
   await arrivalCard.getByRole("button", { name: "Build" }).click();
   await page.getByLabel("Construction projects").getByRole("button", { name: /Rush/ }).click();
-  await arrivalCard.filter({ hasText: "Built" }).waitFor();
+  // Built cards intentionally replace the module name with the generic Built state, so filtering
+  // the same locator by both the old module name and Built can never match after completion.
+  await waitForText(page, ".build-card", "Built");
 
   // 5. The local autosave restores both business state and edited program after a reload.
   await sleep(300);
