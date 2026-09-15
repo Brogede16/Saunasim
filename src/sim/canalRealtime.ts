@@ -182,7 +182,7 @@ function applyBlockWear(world: RuntimeGameState, block: RuntimeOperatingBlock) {
   for (const id of maintainableModules) {
     const wear = block.wear[id] ?? 0;
     if (wear <= 0 || world.repairTask?.moduleId === id) continue;
-    condition[id] = Math.max(0, (condition[id] ?? 100) - wear);
+    condition[id] = Math.max(0, Math.round(((condition[id] ?? 100) - wear) * 10000) / 10000);
   }
   return condition;
 }
@@ -266,22 +266,58 @@ function resolveRealtimeMilestones(
   return { world: next, events };
 }
 
+function sumRevenue(breakdown: WeekReport["revenueBreakdown"]) {
+  return money(breakdown.admissions + breakdown.specialGus + breakdown.shop);
+}
+
+function sumCosts(breakdown: WeekReport["costBreakdown"]) {
+  return money(
+    breakdown.venueBase +
+      breakdown.staff +
+      breakdown.utilitiesAndCleaning +
+      breakdown.programMaterials +
+      breakdown.shopProcurement +
+      breakdown.facilities,
+  );
+}
+
+function reportFromCompletedBlocks(snapshot: RuntimeGameState, runtime: OperatingWeekRuntime): WeekReport {
+  const revenue = sumRevenue(runtime.accruedRevenueBreakdown);
+  const operatingCosts = sumCosts(runtime.accruedCostBreakdown);
+  const loanRepayment = snapshot.loans.reduce((total, loan) => total + loan.weeklyPayment, 0);
+  return {
+    ...runtime.plannedReport,
+    admissions: runtime.accruedAdmissions,
+    specialSeats: runtime.accruedSpecialSeats,
+    revenueBreakdown: runtime.accruedRevenueBreakdown,
+    costBreakdown: runtime.accruedCostBreakdown,
+    revenue,
+    operatingCosts,
+    loanRepayment,
+    netResult: money(revenue - operatingCosts - loanRepayment),
+  };
+}
+
 /**
  * Finalises the canonical game week after its operating blocks have already happened.
  *
- * Cash and facility wear from settled blocks are not applied twice here. The boundary now owns
- * period-only consequences: loan repayment, report publication, programme reveal, profitability,
- * debt ageing and financial-distress evaluation.
+ * Cash and facility wear from settled blocks are not applied twice here. The financial report is
+ * reduced from the completed blocks; the old planned report only supplies not-yet-migrated detail
+ * such as guest snapshots, queue notes and programme-review copy. The boundary owns period-only
+ * consequences: loan repayment, report publication, programme reveal, profitability, debt ageing
+ * and financial-distress evaluation.
  */
 export function settleLegacyCanalGameWeek(snapshot: RuntimeGameState): RuntimeGameState {
   if (snapshot.financialDecisionPending) return snapshot;
 
   const runtime = runtimeFor(snapshot);
   if (!runtime) return snapshot;
-  const report = runtime.plannedReport;
-  const reference = calculateLegacyWeekReference(snapshot);
+  const report = reportFromCompletedBlocks(snapshot, runtime);
   const remainingNet = money(report.netResult - runtime.accruedOperatingNet);
   const cash = money(snapshot.cash + remainingNet);
+  const revealedProgram: ActiveProgram = snapshot.masterHired
+    ? { ...snapshot.activeProgram, revealedTier: evaluateComposition(snapshot.activeProgram) }
+    : snapshot.activeProgram;
 
   return {
     ...snapshot,
@@ -294,7 +330,7 @@ export function settleLegacyCanalGameWeek(snapshot: RuntimeGameState): RuntimeGa
     profitableWeeks: report.netResult > 0 ? snapshot.profitableWeeks + 1 : 0,
     financialDecisionPending: cash < 0,
     selectedGuestId: report.guestSnapshots?.[0]?.id,
-    activeProgram: reference.revealedProgram,
+    activeProgram: revealedProgram,
     lastReport: report,
   };
 }
