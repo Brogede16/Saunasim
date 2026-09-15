@@ -1,0 +1,44 @@
+{
+  "fixtureVersion": 2,
+  "name": "canal-canonical-starter-master-default-week",
+  "purpose": "Portable TypeScript-to-Swift parity fixture for the canonical 24-real-hour game week. The result includes automatic staffing and Aufguss scheduling rather than the legacy Run Week wage shortcut.",
+  "canonical": {
+    "startedAt": 1000000,
+    "advanceTo": 87400000,
+    "seed": 23063
+  },
+  "input": {
+    "cash": 3350,
+    "built": [],
+    "masterHired": true,
+    "master": {
+      "name": "Starter Master",
+      "style": "Traditional",
+      "heatCraft": 3,
+      "aromaCraft": 3,
+      "performanceCraft": 2,
+      "weeklyWage": 500,
+      "equipment": []
+    },
+    "admissionPrice": 24,
+    "schedule": {
+      "openDays": 5,
+      "opensAt": 10,
+      "closesAt": 20
+    }
+  },
+  "expected": {
+    "week": 2,
+    "cash": 4388,
+    "admissions": 70,
+    "specialSeats": 14,
+    "shopSales": 0,
+    "revenue": 1778,
+    "operatingCosts": 740,
+    "loanRepayment": 0,
+    "netResult": 1038,
+    "feasibleSessions": 2,
+    "staffCost": 5,
+    "runtimeClearedAtBoundary": true
+  }
+}
