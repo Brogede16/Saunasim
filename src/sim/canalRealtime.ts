@@ -11,6 +11,7 @@ import { conditionWear } from "./maintenance";
 import { evaluateComposition, type ActiveProgram } from "./program";
 import { evaluateProgramDelivery } from "./programEvaluation";
 import { createRngState, type RngState } from "./deterministicRng";
+import { planCanalOperations } from "./canalOperatingPlan";
 import {
   advanceSimulation,
   type AdvanceSimulationResult,
@@ -88,33 +89,52 @@ function resolveRealtimeMilestones(world: GameState, at: CanonicalTimestamp) {
 /**
  * Transitional canonical settlement for the existing Canal reference.
  *
- * This deliberately preserves the current weekly Canal behaviour at game-week boundaries while
- * Wave 2 replaces the weekly aggregate with finer-grained staffing/demand/guest blocks. Keeping
- * this pure lets online and offline paths share exactly the same state transition today.
+ * Wave 2 now supplies concrete venue-staffing coverage and an automatic weekly Aufguss schedule
+ * before calling the proven Canal balance model. The remaining admission/demand/shop/recovery
+ * equations are still the weekly reference and will be decomposed into smaller operating blocks
+ * incrementally rather than rewritten in one risky step.
  */
 export function settleLegacyCanalGameWeek(snapshot: GameState): GameState {
   if (snapshot.financialDecisionPending) return snapshot;
 
+  const operatingPlan = planCanalOperations(snapshot);
   const loanRepayment = snapshot.loans.reduce((total, loan) => total + loan.weeklyPayment, 0);
   const unavailable = maintainableModules.filter(
     (id) => (snapshot.condition[id] ?? 100) <= 0 || snapshot.repairTask?.moduleId === id,
   );
+  const scheduledProgram = operatingPlan.effectiveRequestedSessions > 0
+    ? { ...snapshot.activeProgram, requestedSessions: operatingPlan.effectiveRequestedSessions }
+    : snapshot.activeProgram;
   const balanceInput = {
     ...snapshot,
+    schedule: operatingPlan.effectiveSchedule,
+    activeProgram: scheduledProgram,
     brandIdentity: snapshot.repertoire.length,
     built: snapshot.built.filter((id) => !unavailable.includes(id as MaintainableModuleId)),
     loanRepayment,
-    masterWage: snapshot.master?.weeklyWage,
+    masterWage: 0,
   };
-  const ledger = simulateCanalWeek(balanceInput);
-  const guestWeek = simulateGuestWeek(balanceInput, ledger, snapshot.week, snapshot.activeProgram);
+  const legacyLedger = simulateCanalWeek(balanceInput);
+  const staffCostDelta = operatingPlan.staffWage - legacyLedger.costBreakdown.staff;
+  const ledger: WeekReport = {
+    ...legacyLedger,
+    operatingCosts: legacyLedger.operatingCosts + staffCostDelta,
+    netResult: legacyLedger.netResult - staffCostDelta,
+    costBreakdown: { ...legacyLedger.costBreakdown, staff: operatingPlan.staffWage },
+    requestedSessions: snapshot.activeProgram.requestedSessions,
+    feasibleSessions: operatingPlan.aufguss.scheduled.length,
+    signal: operatingPlan.warnings.length
+      ? `${legacyLedger.signal} ${operatingPlan.warnings.join(" ")}`
+      : legacyLedger.signal,
+  };
+  const guestWeek = simulateGuestWeek(balanceInput, ledger, snapshot.week, scheduledProgram);
   const revealedProgram: ActiveProgram = snapshot.masterHired
     ? { ...snapshot.activeProgram, revealedTier: evaluateComposition(snapshot.activeProgram) }
     : snapshot.activeProgram;
   const report: WeekReport = {
     ...ledger,
     ...guestWeek,
-    programReview: snapshot.masterHired
+    programReview: snapshot.masterHired && operatingPlan.aufguss.scheduled.length > 0
       ? evaluateProgramDelivery(revealedProgram, snapshot.built, snapshot.master, ledger.specialOccupancy ?? 0)
       : undefined,
   };
@@ -155,9 +175,9 @@ export function settleLegacyCanalGameWeek(snapshot: GameState): GameState {
 const canalRealtimeAdapter: SimulationAdapter<GameState> = {
   nextMilestoneAt: nextRealtimeMilestone,
   advanceInterval(world, context) {
-    // Wave 1 canonicalizes elapsed time and real-time milestones first. Continuous operating
-    // blocks are connected in Wave 2; until then the existing Canal business model settles only
-    // at canonical game-week boundaries.
+    // Canonical elapsed time and real-time milestones already flow through this boundary. Demand
+    // and guest traffic are still settled at the canonical game-week boundary while Wave 2 moves
+    // them into smaller deterministic operating blocks.
     return { world, rng: context.rng };
   },
   resolveMilestonesAt(world, at, rng) {
