@@ -1,0 +1,25 @@
+{
+  "name": "canal-finance-large-loan-distress-week",
+  "canonical": {
+    "startedAt": 1000000,
+    "advanceTo": 87400000,
+    "seed": 42
+  },
+  "input": {
+    "cash": 0,
+    "loan": {
+      "id": "large",
+      "weeklyPayment": 1900,
+      "remainingWeeks": 36
+    }
+  },
+  "expected": {
+    "week": 2,
+    "cash": -847,
+    "loanRepayment": 1900,
+    "remainingWeeks": 35,
+    "netResult": -847,
+    "profitableWeeks": 0,
+    "financialDecisionPending": true
+  }
+}
