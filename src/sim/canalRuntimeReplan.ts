@@ -13,12 +13,7 @@ function blockSettlesAt(startedAt: number, week: number, block: RuntimeOperating
   return weekStart + (gameHoursFromWeekStart / 24) * realMsPerGameDay;
 }
 
-/**
- * Rebuilds only the still-future operating blocks after a midweek configuration or world change.
- * Settled blocks and all accrued accounting remain immutable. This is the portable command-boundary
- * contract Swift should use after price, programme, staffing, schedule, construction or repair
- * changes once the current canonical time has already been advanced to `at`.
- */
+/** Rebuild only still-future blocks after a canonical command/world change. */
 export function replanFutureCanalOperatingRuntime(
   snapshot: GameState,
   runtime: OperatingWeekRuntime,
@@ -30,8 +25,7 @@ export function replanFutureCanalOperatingRuntime(
   const settled = runtime.plannedBlocks.filter((block) => runtime.settledBlockKeys.includes(operatingBlockKey(block)));
   const freshPlan = planCanalOperations(snapshot);
   const freshAll = allocateCanalBlockEconomy(
-    buildCanalOperatingBlocks(snapshot, freshPlan, runtime.plannedReport),
-    runtime.plannedReport,
+    buildCanalOperatingBlocks(snapshot, freshPlan),
   ).map((block) => ({
     ...block,
     wear: calculateCanalBlockWear(snapshot, block),
