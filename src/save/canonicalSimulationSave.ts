@@ -3,7 +3,8 @@ import { importSave, exportSave } from "./savegame";
 import { advanceCanalSimulation, type CanonicalCanalEnvelope } from "../sim/canalRealtime";
 import { canalSessionSeatCapacity } from "../sim/canalBlockDemand";
 import { createRngState } from "../sim/deterministicRng";
-import { previewProgram } from "../sim/program";
+import { previewProgram, programSignature } from "../sim/program";
+import { defaultShopRange, resolveShopLines } from "../sim/shop";
 import { operatingBlockKey, type OperatingWeekRuntime } from "../sim/canalWeekRuntime";
 
 export const CANONICAL_SIMULATION_SAVE_VERSION = 2;
@@ -21,6 +22,13 @@ const costBreakdownSchema = z.object({
   shopProcurement: z.number().finite(),
   facilities: z.number().finite(),
 });
+const shopLineSchema = z.object({
+  itemId: z.enum(["cold-water", "herbal-tea", "towel-rental", "sauna-towel", "house-blend", "signature-towel", "fruit-snack"]),
+  name: z.string(),
+  units: z.number().int().nonnegative(),
+  revenue: z.number().finite().nonnegative(),
+  procurement: z.number().finite().nonnegative(),
+});
 const runtimeBlockSchema = z.object({
   dayIndex: z.number().int().min(0).max(6),
   daypart: z.enum(["night", "morning", "day", "evening"]),
@@ -29,9 +37,11 @@ const runtimeBlockSchema = z.object({
   openHours: z.number().nonnegative(),
   scheduledAufguss: z.number().int().nonnegative(),
   specialCapacity: z.number().int().nonnegative().optional(),
+  specialDemand: z.number().int().nonnegative().optional(),
+  walkUpSeats: z.number().int().nonnegative().optional(),
+  turnedAwayFromGus: z.number().int().nonnegative().optional(),
+  programSignature: z.string().optional(),
   demandWeight: z.number().nonnegative(),
-  // Optional only for reading early v2 saves created before native block ownership expanded.
-  // Import normalises missing values from saved world/runtime values before simulation resumes.
   admissionPrice: z.number().finite().nonnegative().optional(),
   supplementPrice: z.number().finite().nonnegative().optional(),
   sessionMaterialCost: z.number().finite().nonnegative().optional(),
@@ -41,6 +51,7 @@ const runtimeBlockSchema = z.object({
   shopSales: z.number().int().nonnegative().optional(),
   shopRevenue: z.number().finite().nonnegative().optional(),
   shopProcurement: z.number().finite().nonnegative().optional(),
+  shopLines: z.array(shopLineSchema).optional(),
   recoveryDemand: z.number().int().nonnegative().optional(),
   recoveryQueueLoss: z.number().int().nonnegative().optional(),
   recoveryBottleneck: z.literal("Cold recovery").optional(),
@@ -59,7 +70,8 @@ const runtimeBlockSchema = z.object({
 });
 const operatingRuntimeSchema = z.object({
   week: z.number().int().positive(),
-  plannedReport: z.unknown(),
+  // Kept optional only to read early v2 saves. Canonical runtime no longer stores/uses it.
+  plannedReport: z.unknown().optional(),
   plannedBlocks: z.array(runtimeBlockSchema),
   settledBlockKeys: z.array(z.string()),
   accruedAdmissions: z.number().int().nonnegative(),
@@ -104,34 +116,56 @@ export function importCanonicalSimulationSave(serialized: string): CanonicalCana
     const world = importSave(parsed.data.legacyGameSave);
     if (!world) return undefined;
     const currentMaterialCost = previewProgram(world.activeProgram).materialCost;
+    const currentProgramSignature = programSignature(world.activeProgram);
     const sessionCapacity = canalSessionSeatCapacity(world);
     const operatingRuntime = parsed.data.operatingRuntime
       ? (() => {
-          const plannedBlocks = parsed.data.operatingRuntime!.plannedBlocks.map((block) => ({
-            ...block,
-            specialCapacity: block.specialCapacity ?? block.scheduledAufguss * sessionCapacity,
-            admissionPrice: block.admissionPrice ?? world.admissionPrice,
-            supplementPrice: block.supplementPrice ?? world.activeProgram.supplementPrice,
-            sessionMaterialCost: block.sessionMaterialCost ?? currentMaterialCost,
-            staffCost: block.staffCost ?? block.costs.staff,
-            shopSales: block.shopSales ?? 0,
-            shopRevenue: block.shopRevenue ?? block.revenue.shop,
-            shopProcurement: block.shopProcurement ?? block.costs.shopProcurement,
-            recoveryDemand: block.recoveryDemand ?? 0,
-            recoveryQueueLoss: block.recoveryQueueLoss ?? 0,
-            recoveryBottleneck: block.recoveryBottleneck,
-          }));
-          const settledKeys = parsed.data.operatingRuntime!.settledBlockKeys;
+          const source = parsed.data.operatingRuntime!;
+          const plannedBlocks = source.plannedBlocks.map((block) => {
+            const shopSales = block.shopSales ?? 0;
+            const inferredLines = block.shopLines ?? resolveShopLines(
+              world.shopRange ?? defaultShopRange,
+              shopSales,
+              undefined,
+              world.repertoire.length > 0,
+            );
+            return {
+              ...block,
+              specialCapacity: block.specialCapacity ?? block.scheduledAufguss * sessionCapacity,
+              specialDemand: block.specialDemand ?? block.specialSeats,
+              walkUpSeats: block.walkUpSeats ?? 0,
+              turnedAwayFromGus: block.turnedAwayFromGus ?? 0,
+              programSignature: block.programSignature ?? currentProgramSignature,
+              admissionPrice: block.admissionPrice ?? world.admissionPrice,
+              supplementPrice: block.supplementPrice ?? world.activeProgram.supplementPrice,
+              sessionMaterialCost: block.sessionMaterialCost ?? currentMaterialCost,
+              staffCost: block.staffCost ?? block.costs.staff,
+              shopSales,
+              shopRevenue: block.shopRevenue ?? block.revenue.shop,
+              shopProcurement: block.shopProcurement ?? block.costs.shopProcurement,
+              shopLines: inferredLines,
+              recoveryDemand: block.recoveryDemand ?? 0,
+              recoveryQueueLoss: block.recoveryQueueLoss ?? 0,
+              recoveryBottleneck: block.recoveryBottleneck,
+            };
+          });
+          const settledKeys = source.settledBlockKeys;
           const inferredSettledCapacity = plannedBlocks
             .filter((block) => settledKeys.includes(operatingBlockKey(block)))
             .reduce((total, block) => total + block.specialCapacity, 0);
           return {
-            ...parsed.data.operatingRuntime!,
+            week: source.week,
             plannedBlocks,
-            accruedSpecialCapacity: parsed.data.operatingRuntime!.accruedSpecialCapacity ?? inferredSettledCapacity,
-            accruedShopSales: parsed.data.operatingRuntime!.accruedShopSales ?? 0,
-            accruedRecoveryDemand: parsed.data.operatingRuntime!.accruedRecoveryDemand ?? 0,
-            accruedRecoveryQueueLoss: parsed.data.operatingRuntime!.accruedRecoveryQueueLoss ?? 0,
+            settledBlockKeys: source.settledBlockKeys,
+            accruedAdmissions: source.accruedAdmissions,
+            accruedSpecialSeats: source.accruedSpecialSeats,
+            accruedSpecialCapacity: source.accruedSpecialCapacity ?? inferredSettledCapacity,
+            accruedShopSales: source.accruedShopSales ?? 0,
+            accruedRecoveryDemand: source.accruedRecoveryDemand ?? 0,
+            accruedRecoveryQueueLoss: source.accruedRecoveryQueueLoss ?? 0,
+            accruedRevenueBreakdown: source.accruedRevenueBreakdown,
+            accruedCostBreakdown: source.accruedCostBreakdown,
+            accruedOperatingNet: source.accruedOperatingNet,
           } as OperatingWeekRuntime;
         })()
       : undefined;
