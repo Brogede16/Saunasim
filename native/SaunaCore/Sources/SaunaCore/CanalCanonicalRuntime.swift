@@ -61,6 +61,55 @@ public struct CanalWorldState: Codable, Equatable, Sendable {
         self.repairTask = repairTask; self.lastReport = lastReport
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case cash, week, built, master, admissionPrice, schedule, program, serviceHostCount, loanRepayment
+        case loans, profitableWeeks, financialDecisionPending, shopRange, hasBrandIdentity, construction, condition, repairTask, lastReport
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        cash = try container.decode(Double.self, forKey: .cash)
+        week = try container.decodeIfPresent(Int.self, forKey: .week) ?? 1
+        built = try container.decodeIfPresent(Set<String>.self, forKey: .built) ?? []
+        master = try container.decodeIfPresent(MasterProfile.self, forKey: .master)
+        admissionPrice = try container.decode(Double.self, forKey: .admissionPrice)
+        schedule = try container.decode(VenueSchedule.self, forKey: .schedule)
+        program = try container.decodeIfPresent(ActiveProgram.self, forKey: .program) ?? .starter
+        serviceHostCount = try container.decodeIfPresent(Int.self, forKey: .serviceHostCount) ?? 0
+        loanRepayment = try container.decodeIfPresent(Double.self, forKey: .loanRepayment) ?? 0
+        loans = try container.decodeIfPresent([CanalLoan].self, forKey: .loans) ?? []
+        profitableWeeks = try container.decodeIfPresent(Int.self, forKey: .profitableWeeks) ?? 0
+        financialDecisionPending = try container.decodeIfPresent(Bool.self, forKey: .financialDecisionPending) ?? false
+        shopRange = try container.decodeIfPresent([String].self, forKey: .shopRange) ?? ["cold-water", "sauna-towel", "house-blend"]
+        hasBrandIdentity = try container.decodeIfPresent(Bool.self, forKey: .hasBrandIdentity) ?? false
+        construction = try container.decodeIfPresent([CanalConstructionProject].self, forKey: .construction) ?? []
+        condition = try container.decodeIfPresent([String: Double].self, forKey: .condition) ?? [:]
+        repairTask = try container.decodeIfPresent(CanalRepairTask.self, forKey: .repairTask)
+        lastReport = try container.decodeIfPresent(CanalCanonicalReport.self, forKey: .lastReport)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(cash, forKey: .cash)
+        try container.encode(week, forKey: .week)
+        try container.encode(built, forKey: .built)
+        try container.encodeIfPresent(master, forKey: .master)
+        try container.encode(admissionPrice, forKey: .admissionPrice)
+        try container.encode(schedule, forKey: .schedule)
+        try container.encode(program, forKey: .program)
+        try container.encode(serviceHostCount, forKey: .serviceHostCount)
+        try container.encode(loanRepayment, forKey: .loanRepayment)
+        try container.encode(loans, forKey: .loans)
+        try container.encode(profitableWeeks, forKey: .profitableWeeks)
+        try container.encode(financialDecisionPending, forKey: .financialDecisionPending)
+        try container.encode(shopRange, forKey: .shopRange)
+        try container.encode(hasBrandIdentity, forKey: .hasBrandIdentity)
+        try container.encode(construction, forKey: .construction)
+        try container.encode(condition, forKey: .condition)
+        try container.encodeIfPresent(repairTask, forKey: .repairTask)
+        try container.encodeIfPresent(lastReport, forKey: .lastReport)
+    }
+
     public var scheduledLoanRepayment: Double {
         CanalFinance.scheduledRepayment(loans: loans, legacyRepayment: loanRepayment)
     }
@@ -102,8 +151,6 @@ public enum CanalCanonicalRuntime {
         next.world.world = financed
         return next
     }
-    /// Instantaneous domain changes happen only after the caller advances to the command time.
-    /// Existing settled history is preserved; only future blocks are rebuilt from the changed world.
     public static func applyWorldChange(_ envelope: CanalCanonicalEnvelope, change: (CanalWorldState) -> CanalWorldState) -> CanalCanonicalEnvelope {
         var next = envelope
         next.world.world = change(next.world.world)
