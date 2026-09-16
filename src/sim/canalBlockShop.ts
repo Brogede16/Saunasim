@@ -1,11 +1,12 @@
 import type { GameState } from "./game";
-import { canalShopAudience, defaultShopRange, resolveShopLines, shopAssortmentFit, type ShopAudience } from "./shop";
+import { canalShopAudience, defaultShopRange, resolveShopLines, shopAssortmentFit, type ShopAudience, type ShopLine } from "./shop";
 import { serviceTeamShopConversion } from "./serviceTeam";
 
 export type CanalBlockShopOutcome = {
   sales: number;
   revenue: number;
   procurement: number;
+  lines: ShopLine[];
 };
 
 function programmeAudience(snapshot: GameState): ShopAudience {
@@ -20,10 +21,11 @@ function programmeAudience(snapshot: GameState): ShopAudience {
 /**
  * Resolves shop demand inside the operating block that produced the visitors. Stock is modelled as
  * automatic replenishment, so procurement is booked alongside the sale rather than as a separate
- * inventory simulation. No weekly shop-sales oracle is supplied here.
+ * inventory simulation. The exact line mix is persisted on the block so a midweek assortment or
+ * programme change cannot rewrite products that were already sold.
  */
 export function calculateCanalBlockShopOutcome(snapshot: GameState, admissions: number): CanalBlockShopOutcome {
-  if (!snapshot.built.includes("shop") || admissions <= 0) return { sales: 0, revenue: 0, procurement: 0 };
+  if (!snapshot.built.includes("shop") || admissions <= 0) return { sales: 0, revenue: 0, procurement: 0, lines: [] };
 
   const audience = programmeAudience(snapshot);
   const range = snapshot.shopRange ?? defaultShopRange;
@@ -36,6 +38,7 @@ export function calculateCanalBlockShopOutcome(snapshot: GameState, admissions: 
 
   return {
     sales,
+    lines,
     revenue: lines.reduce((total, line) => total + line.revenue, 0),
     procurement: lines.reduce((total, line) => total + line.procurement, 0),
   };
