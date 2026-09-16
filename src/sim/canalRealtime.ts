@@ -57,7 +57,7 @@ function money(value: number) {
   return Math.round(value * 100) / 100;
 }
 
-function calculateLegacyWeekReference(snapshot: GameState) {
+function operationalBalanceInput(snapshot: GameState) {
   const operatingPlan = planCanalOperations(snapshot);
   const loanRepayment = snapshot.loans.reduce((total, loan) => total + loan.weeklyPayment, 0);
   const unavailable = maintainableModules.filter(
@@ -75,6 +75,11 @@ function calculateLegacyWeekReference(snapshot: GameState) {
     loanRepayment,
     masterWage: 0,
   };
+  return { operatingPlan, balanceInput, scheduledProgram };
+}
+
+function calculateLegacyWeekReference(snapshot: GameState) {
+  const { operatingPlan, balanceInput, scheduledProgram } = operationalBalanceInput(snapshot);
   const legacyLedger = simulateCanalWeek(balanceInput);
   const staffCostDelta = operatingPlan.staffWage - legacyLedger.costBreakdown.staff;
   const ledger: WeekReport = {
@@ -88,13 +93,11 @@ function calculateLegacyWeekReference(snapshot: GameState) {
       ? `${legacyLedger.signal} ${operatingPlan.warnings.join(" ")}`
       : legacyLedger.signal,
   };
-  const guestWeek = simulateGuestWeek(balanceInput, ledger, snapshot.week, scheduledProgram);
   const revealedProgram: ActiveProgram = snapshot.masterHired
     ? { ...snapshot.activeProgram, revealedTier: evaluateComposition(snapshot.activeProgram) }
     : snapshot.activeProgram;
   const report: WeekReport = {
     ...ledger,
-    ...guestWeek,
     programReview: snapshot.masterHired && operatingPlan.aufguss.scheduled.length > 0
       ? evaluateProgramDelivery(revealedProgram, snapshot.built, snapshot.master, ledger.specialOccupancy ?? 0)
       : undefined,
@@ -315,8 +318,9 @@ function reportFromCompletedBlocks(snapshot: RuntimeGameState, runtime: Operatin
   const revenue = sumRevenue(runtime.accruedRevenueBreakdown);
   const operatingCosts = sumCosts(costBreakdown);
   const loanRepayment = snapshot.loans.reduce((total, loan) => total + loan.weeklyPayment, 0);
-  return {
+  const report: WeekReport = {
     ...runtime.plannedReport,
+    guestSnapshots: undefined,
     admissions: runtime.accruedAdmissions,
     specialSeats: runtime.accruedSpecialSeats,
     shopSales: runtime.accruedShopSales,
@@ -330,15 +334,26 @@ function reportFromCompletedBlocks(snapshot: RuntimeGameState, runtime: Operatin
     loanRepayment,
     netResult: money(revenue - operatingCosts - loanRepayment),
   };
+
+  // Visible guests are a deterministic sample of the week that actually happened. They are
+  // intentionally created only after completed blocks have produced canonical admissions, shop
+  // use and recovery pressure; a midweek price/program/staff change therefore changes the sample
+  // through the factual final report rather than through a precomputed week-start guess.
+  const { balanceInput, scheduledProgram } = operationalBalanceInput(snapshot);
+  const guestWeek = simulateGuestWeek(balanceInput, report, snapshot.week, scheduledProgram);
+  return {
+    ...report,
+    guestSnapshots: guestWeek.guestSnapshots,
+  };
 }
 
 /**
  * Finalises the canonical game week after its operating blocks have already happened.
  *
  * Cash and facility wear from settled blocks are not applied twice here. The financial report is
- * reduced from completed blocks plus explicit fixed period obligations. Shop sales and cold
- * recovery pressure are also reduced from completed blocks. The old planned report now supplies
- * only not-yet-migrated guest snapshots, narrative notes and programme-review copy.
+ * reduced from completed blocks plus explicit fixed period obligations. Guest snapshots are then
+ * generated from that completed report. The old planned report now supplies only not-yet-migrated
+ * narrative signal fields and programme-review copy.
  */
 export function settleLegacyCanalGameWeek(snapshot: RuntimeGameState): RuntimeGameState {
   if (snapshot.financialDecisionPending) return snapshot;
