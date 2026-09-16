@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { importSave, exportSave } from "./savegame";
 import { advanceCanalSimulation, type CanonicalCanalEnvelope } from "../sim/canalRealtime";
+import { canalSessionSeatCapacity } from "../sim/canalBlockDemand";
 import { createRngState } from "../sim/deterministicRng";
 import { previewProgram } from "../sim/program";
-import type { OperatingWeekRuntime } from "../sim/canalWeekRuntime";
+import { operatingBlockKey, type OperatingWeekRuntime } from "../sim/canalWeekRuntime";
 
 export const CANONICAL_SIMULATION_SAVE_VERSION = 2;
 
@@ -27,6 +28,7 @@ const runtimeBlockSchema = z.object({
   endsAt: z.number().min(0).max(24),
   openHours: z.number().nonnegative(),
   scheduledAufguss: z.number().int().nonnegative(),
+  specialCapacity: z.number().int().nonnegative().optional(),
   demandWeight: z.number().nonnegative(),
   // Optional only for reading early v2 saves created before native block ownership expanded.
   // Import normalises missing values from saved world/runtime values before simulation resumes.
@@ -62,6 +64,7 @@ const operatingRuntimeSchema = z.object({
   settledBlockKeys: z.array(z.string()),
   accruedAdmissions: z.number().int().nonnegative(),
   accruedSpecialSeats: z.number().int().nonnegative(),
+  accruedSpecialCapacity: z.number().int().nonnegative().optional(),
   accruedShopSales: z.number().int().nonnegative().optional(),
   accruedRecoveryDemand: z.number().int().nonnegative().optional(),
   accruedRecoveryQueueLoss: z.number().int().nonnegative().optional(),
@@ -101,14 +104,12 @@ export function importCanonicalSimulationSave(serialized: string): CanonicalCana
     const world = importSave(parsed.data.legacyGameSave);
     if (!world) return undefined;
     const currentMaterialCost = previewProgram(world.activeProgram).materialCost;
+    const sessionCapacity = canalSessionSeatCapacity(world);
     const operatingRuntime = parsed.data.operatingRuntime
-      ? {
-          ...parsed.data.operatingRuntime,
-          accruedShopSales: parsed.data.operatingRuntime.accruedShopSales ?? 0,
-          accruedRecoveryDemand: parsed.data.operatingRuntime.accruedRecoveryDemand ?? 0,
-          accruedRecoveryQueueLoss: parsed.data.operatingRuntime.accruedRecoveryQueueLoss ?? 0,
-          plannedBlocks: parsed.data.operatingRuntime.plannedBlocks.map((block) => ({
+      ? (() => {
+          const plannedBlocks = parsed.data.operatingRuntime!.plannedBlocks.map((block) => ({
             ...block,
+            specialCapacity: block.specialCapacity ?? block.scheduledAufguss * sessionCapacity,
             admissionPrice: block.admissionPrice ?? world.admissionPrice,
             supplementPrice: block.supplementPrice ?? world.activeProgram.supplementPrice,
             sessionMaterialCost: block.sessionMaterialCost ?? currentMaterialCost,
@@ -119,8 +120,20 @@ export function importCanonicalSimulationSave(serialized: string): CanonicalCana
             recoveryDemand: block.recoveryDemand ?? 0,
             recoveryQueueLoss: block.recoveryQueueLoss ?? 0,
             recoveryBottleneck: block.recoveryBottleneck,
-          })),
-        } as OperatingWeekRuntime
+          }));
+          const settledKeys = parsed.data.operatingRuntime!.settledBlockKeys;
+          const inferredSettledCapacity = plannedBlocks
+            .filter((block) => settledKeys.includes(operatingBlockKey(block)))
+            .reduce((total, block) => total + block.specialCapacity, 0);
+          return {
+            ...parsed.data.operatingRuntime!,
+            plannedBlocks,
+            accruedSpecialCapacity: parsed.data.operatingRuntime!.accruedSpecialCapacity ?? inferredSettledCapacity,
+            accruedShopSales: parsed.data.operatingRuntime!.accruedShopSales ?? 0,
+            accruedRecoveryDemand: parsed.data.operatingRuntime!.accruedRecoveryDemand ?? 0,
+            accruedRecoveryQueueLoss: parsed.data.operatingRuntime!.accruedRecoveryQueueLoss ?? 0,
+          } as OperatingWeekRuntime;
+        })()
       : undefined;
     return {
       startedAt: parsed.data.startedAt,
