@@ -1,0 +1,25 @@
+{
+  "name": "canal-finance-small-loan-week",
+  "canonical": {
+    "startedAt": 1000000,
+    "advanceTo": 87400000,
+    "seed": 42
+  },
+  "input": {
+    "cash": 3350,
+    "loan": {
+      "id": "small",
+      "weeklyPayment": 375,
+      "remainingWeeks": 22
+    }
+  },
+  "expected": {
+    "week": 2,
+    "cash": 4028,
+    "loanRepayment": 375,
+    "remainingWeeks": 21,
+    "netResult": 678,
+    "profitableWeeks": 1,
+    "financialDecisionPending": false
+  }
+}
