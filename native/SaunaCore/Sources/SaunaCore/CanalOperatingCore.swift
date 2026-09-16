@@ -140,34 +140,31 @@ public enum CanalOperatingCore {
 
     private static let fixedVenueBase = 300.0
     private static let fixedUtilitiesAndCleaning = 212.0
-    private static let variableVenueCostPerOpenHour = 2.0
-    private static let variableUtilitiesAndCleaningPerOpenHour = 2.0
-    private static let classicReferenceWeight = 1.035
 
     public static func simulateStarterWeek(_ input: CanalOperatingInput) -> CanalWeekResult {
-        let effective = effectiveSchedule(input)
-        let openHours = weeklyOpenHours(effective)
-        let sessions = scheduleAufguss(input: input, effectiveSchedule: effective)
-        let staffCost = masterWage(master: input.master, sessions: sessions)
-        let admissions = ordinaryAdmissions(input: input, effectiveSchedule: effective)
-        let specialSeats = specialAdmissions(input: input, sessions: sessions, totalAdmissions: admissions)
-
-        let admissionRevenue = Double(admissions) * input.admissionPrice
-        let specialRevenue = Double(specialSeats) * input.program.supplementPrice
-        let revenue = money(admissionRevenue + specialRevenue)
-
-        let variableVenue = openHours * variableVenueCostPerOpenHour
-        let variableUtilities = openHours * variableUtilitiesAndCleaningPerOpenHour
-        let materials = Double(sessions.count) * input.program.materialCostPerSession
-        let facilities = facilityPeriodCosts(input.built)
+        let blocks = CanalBlockPlanner.plan(input)
+        let sessions = scheduleAufguss(input: input, effectiveSchedule: effectiveSchedule(input))
+        let admissions = blocks.reduce(0) { $0 + $1.admissions }
+        let specialSeats = blocks.reduce(0) { $0 + $1.specialSeats }
+        let shopSales = blocks.reduce(0) { $0 + $1.shopSales }
+        let revenue = money(blocks.reduce(0.0) {
+            $0 + $1.revenue.admissions + $1.revenue.specialGus + $1.revenue.shop
+        })
+        let variableCosts = blocks.reduce(0.0) {
+            $0
+                + $1.costs.venueBase
+                + $1.costs.staff
+                + $1.costs.utilitiesAndCleaning
+                + $1.costs.programMaterials
+                + $1.costs.shopProcurement
+                + $1.costs.facilities
+        }
+        let staffCost = money(blocks.reduce(0.0) { $0 + $1.costs.staff })
         let operatingCosts = money(
-            fixedVenueBase
+            variableCosts
+                + fixedVenueBase
                 + fixedUtilitiesAndCleaning
-                + variableVenue
-                + variableUtilities
-                + staffCost
-                + materials
-                + facilities
+                + facilityPeriodCosts(input.built)
         )
         let netResult = money(revenue - operatingCosts - input.loanRepayment)
 
@@ -176,7 +173,7 @@ public enum CanalOperatingCore {
             cash: money(input.cash + netResult),
             admissions: admissions,
             specialSeats: specialSeats,
-            shopSales: 0,
+            shopSales: shopSales,
             revenue: revenue,
             operatingCosts: operatingCosts,
             loanRepayment: input.loanRepayment,
@@ -249,61 +246,6 @@ public enum CanalOperatingCore {
         return scheduled
     }
 
-    private static func ordinaryAdmissions(input: CanalOperatingInput, effectiveSchedule: VenueSchedule) -> Int {
-        let openHours = weeklyOpenHours(effectiveSchedule)
-        guard openHours > 0 else { return 0 }
-
-        let hasMaster = input.master != nil
-        let hasSign = input.built.contains("arrival")
-        let hasPlunge = input.built.contains("cold-plunge")
-        let hasYard = input.built.contains("aufguss-yard")
-        let hasProgramSauna = input.built.contains("program")
-        let basePerFifty: Double
-        if !hasMaster {
-            basePerFifty = 30 + (hasSign ? 3 : 0)
-        } else {
-            basePerFifty = 70
-                + (hasSign ? 5 : 0)
-                + (hasPlunge ? 6 : 0)
-                + (hasYard ? 8 : 0)
-                + (hasProgramSauna ? 8 : 0)
-        }
-
-        let scheduleWeight = scheduleDemandWeight(effectiveSchedule, intent: input.program.intent)
-        let rawPotential = (basePerFifty / 50) * openHours * (scheduleWeight / classicReferenceWeight)
-        let roundedPotential = max(0, jsRound(rawPotential))
-        let totalCapacity = max(0, jsRound((82.0 / 50.0) * openHours))
-        let crediblePrice = 24.0
-            + (hasYard ? 2 : 0)
-            + (input.built.contains("shower") ? 1 : 0)
-            + (hasPlunge ? 1 : 0)
-            + (input.serviceHostCount > 0 ? 1 : 0)
-        let delta = input.admissionPrice - crediblePrice
-        let resistance = delta < 0 ? delta * 4 : delta * 2 + max(0, delta - 6) * 2
-        let priceAdjusted = max(0, Double(roundedPotential) - resistance)
-        return min(totalCapacity, max(0, jsRound(priceAdjusted)))
-    }
-
-    private static func specialAdmissions(
-        input: CanalOperatingInput,
-        sessions: [ScheduledAufguss],
-        totalAdmissions: Int
-    ) -> Int {
-        guard input.master != nil, !sessions.isEmpty else { return 0 }
-        let scheduled = sessions.count
-        let basePerSession = max(0, 7.0 - max(0, input.program.supplementPrice - 7) * 2)
-        let programmeDemand = max(0, jsRound(Double(scheduled) * basePerSession))
-        let capacity = scheduled * compactRoomCapacity
-        return min(totalAdmissions, capacity, programmeDemand)
-    }
-
-    private static func masterWage(master: MasterProfile?, sessions: [ScheduledAufguss]) -> Double {
-        guard let master, !sessions.isEmpty else { return 0 }
-        let paidHours = sessions.reduce(0.0) { $0 + ($1.endsAt - $1.startsAt) }
-        let hourly = master.weeklyWage / masterReferenceWeeklyHours
-        return Double(jsRound(paidHours * hourly))
-    }
-
     private static func facilityPeriodCosts(_ built: Set<String>) -> Double {
         var total = 0.0
         if built.contains("shower") { total += 20 }
@@ -311,32 +253,6 @@ public enum CanalOperatingCore {
         if built.contains("aufguss-yard") { total += 190 }
         if built.contains("program") { total += 290 }
         return total
-    }
-
-    private static func scheduleDemandWeight(_ schedule: VenueSchedule, intent: ProgramIntent) -> Double {
-        let parts: [(Double, Double, Double)] = [
-            (0, 7, daypartWeight(intent, "night")),
-            (7, 11, daypartWeight(intent, "morning")),
-            (11, 17, daypartWeight(intent, "day")),
-            (17, 24, daypartWeight(intent, "evening")),
-        ]
-        let dailyWeighted = parts.reduce(0.0) { sum, part in
-            let hours = max(0, min(schedule.closesAt, part.1) - max(schedule.opensAt, part.0))
-            return sum + hours * part.2
-        }
-        let dailyHours = max(0, schedule.closesAt - schedule.opensAt)
-        return dailyHours == 0 ? 0 : dailyWeighted / dailyHours
-    }
-
-    private static func daypartWeight(_ intent: ProgramIntent, _ daypart: String) -> Double {
-        switch intent {
-        case .quietRecovery:
-            return daypart == "morning" ? 1.2 : daypart == "day" ? 1.15 : daypart == "evening" ? 0.85 : 0.45
-        case .socialEnergy, .showJourney:
-            return daypart == "evening" ? 1.25 : daypart == "day" ? 0.95 : daypart == "morning" ? 0.7 : 0.5
-        case .classicRitual:
-            return daypart == "evening" ? 1.05 : daypart == "day" ? 1.05 : daypart == "morning" ? 0.9 : 0.55
-        }
     }
 
     private static func preferredHours(_ intent: ProgramIntent) -> [Double] {
@@ -356,10 +272,6 @@ public enum CanalOperatingCore {
 
     private static func overlaps(_ a: ScheduledAufguss, _ b: ScheduledAufguss) -> Bool {
         a.dayIndex == b.dayIndex && a.startsAt < b.endsAt && b.startsAt < a.endsAt
-    }
-
-    private static func jsRound(_ value: Double) -> Int {
-        Int(floor(value + 0.5))
     }
 
     private static func money(_ value: Double) -> Double {
