@@ -4,7 +4,7 @@ import { calculateCanalBlockShopOutcome } from "./canalBlockShop";
 
 describe("native Canal block shop", () => {
   it("produces no shop economy without the shop module", () => {
-    expect(calculateCanalBlockShopOutcome(initialState, 20)).toEqual({ sales: 0, revenue: 0, procurement: 0 });
+    expect(calculateCanalBlockShopOutcome(initialState, 20)).toEqual({ sales: 0, revenue: 0, procurement: 0, lines: [] });
   });
 
   it("produces sales and automatic procurement from visitors when the shop exists", () => {
@@ -13,6 +13,7 @@ describe("native Canal block shop", () => {
     expect(result.sales).toBeGreaterThan(0);
     expect(result.revenue).toBeGreaterThan(result.procurement);
     expect(result.procurement).toBeGreaterThan(0);
+    expect(result.lines.reduce((total, line) => total + line.units, 0)).toBe(result.sales);
   });
 
   it("uses the active range rather than a hidden weekly sales total", () => {
