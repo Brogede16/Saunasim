@@ -22,6 +22,14 @@ export type CanalBlockDemand = CanalDemandBlockInput & {
   admissions: number;
 };
 
+export type CanalSpecialDemandOutcome = {
+  seats: number[];
+  programmeDemand: number;
+  specialCapacity: number;
+  walkUpSeats: number;
+  turnedAway: number;
+};
+
 const CLASSIC_REFERENCE_WEIGHT = 1.035;
 const WALK_UP_SPARE_FILL_SHARE = 0.25;
 
@@ -106,10 +114,6 @@ function allocateIntegerByWeight<T>(items: T[], total: number, weightOf: (item: 
   return result;
 }
 
-/**
- * Computes ordinary arrivals directly from staffed operating blocks. The 50-hour references are
- * inherited balance constants, but no weekly admissions result is supplied to this function.
- */
 export function calculateNativeCanalBlockAdmissions(
   snapshot: GameState,
   _operatingPlan: CanalOperatingPlan,
@@ -143,17 +147,16 @@ export function calculateNativeCanalBlockAdmissions(
   }));
 }
 
-/**
- * Computes Special Gus attendance from the actual scheduled session count and current programme
- * promise. Capacity and demand are derived here rather than copied from a weekly special-seat total.
- */
-export function calculateNativeCanalBlockSpecialSeats(
+/** Rich canonical Gus demand outcome used for factual reporting and per-block allocation. */
+export function calculateNativeCanalSpecialDemand(
   snapshot: GameState,
   operatingPlan: CanalOperatingPlan,
   blocks: CanalSpecialDemandBlockInput[],
-) {
+): CanalSpecialDemandOutcome {
   const scheduledSessions = blocks.reduce((sum, block) => sum + block.scheduledAufguss, 0);
-  if (!snapshot.masterHired || scheduledSessions <= 0) return blocks.map(() => 0);
+  if (!snapshot.masterHired || scheduledSessions <= 0) {
+    return { seats: blocks.map(() => 0), programmeDemand: 0, specialCapacity: 0, walkUpSeats: 0, turnedAway: 0 };
+  }
 
   const fit = physicalProgramDemandFit(snapshot);
   const basePerSession = Math.max(
@@ -168,14 +171,24 @@ export function calculateNativeCanalBlockSpecialSeats(
   const totalAdmissions = blocks.reduce((sum, block) => sum + block.admissions, 0);
   const hasCapacityUpgrade = snapshot.built.includes("bench-refit") || snapshot.built.includes("program") || snapshot.built.includes("aufguss-yard");
   const spareCapacity = hasCapacityUpgrade ? Math.max(0, Math.min(totalAdmissions, specialCapacity) - programmeDemand) : 0;
-  const walkUpFill = Math.round(spareCapacity * WALK_UP_SPARE_FILL_SHARE);
-  const accepted = Math.min(totalAdmissions, specialCapacity, programmeDemand + walkUpFill);
-
-  return allocateIntegerByWeight(
+  const potentialWalkUp = Math.round(spareCapacity * WALK_UP_SPARE_FILL_SHARE);
+  const accepted = Math.min(totalAdmissions, specialCapacity, programmeDemand + potentialWalkUp);
+  const walkUpSeats = Math.max(0, accepted - Math.min(programmeDemand, accepted));
+  const turnedAway = Math.max(0, programmeDemand - Math.min(totalAdmissions, specialCapacity));
+  const seats = allocateIntegerByWeight(
     blocks,
     accepted,
     (block) => block.scheduledAufguss > 0
       ? block.scheduledAufguss * Math.max(0.25, daypartWeight(snapshot.activeProgram.intent, block.daypart))
       : 0,
   );
+  return { seats, programmeDemand, specialCapacity, walkUpSeats, turnedAway };
+}
+
+export function calculateNativeCanalBlockSpecialSeats(
+  snapshot: GameState,
+  operatingPlan: CanalOperatingPlan,
+  blocks: CanalSpecialDemandBlockInput[],
+) {
+  return calculateNativeCanalSpecialDemand(snapshot, operatingPlan, blocks).seats;
 }
