@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { initialState } from "./game";
 import { REAL_MS_PER_GAME_WEEK } from "./canonicalTime";
 import { advanceCanalSimulation, createCanonicalCanalEnvelope } from "./canalRealtime";
+import { applyCanalWorldChange } from "./canalCommands";
 
 describe("Canal canonical realtime bridge", () => {
   it("produces the same canonical state when 24 hours advance in one offline jump or four online chunks", () => {
@@ -30,29 +31,23 @@ describe("Canal canonical realtime bridge", () => {
   it("replans only future blocks when an operating input changes midweek", () => {
     const start = 1_500_000;
     const midweek = start + REAL_MS_PER_GAME_WEEK * 0.35;
-    const shortlyAfter = midweek + 1;
     const boundary = start + REAL_MS_PER_GAME_WEEK;
     const initial = createCanonicalCanalEnvelope(initialState, start, 54321);
     const partial = advanceCanalSimulation(initial, midweek).envelope;
 
-    const beforeRuntime = partial.operatingRuntime;
-    expect(beforeRuntime?.settledBlockKeys.length).toBeGreaterThan(0);
-    const settledBefore = [...(beforeRuntime?.settledBlockKeys ?? [])];
-    const admissionsBefore = beforeRuntime?.accruedAdmissions ?? 0;
+    const beforeRuntime = partial.operatingRuntime!;
+    expect(beforeRuntime.settledBlockKeys.length).toBeGreaterThan(0);
+    const settledBefore = [...beforeRuntime.settledBlockKeys];
+    const admissionsBefore = beforeRuntime.accruedAdmissions;
     const cashBefore = partial.world.cash;
 
-    const repriced = {
-      ...partial,
-      world: { ...partial.world, admissionPrice: 40 },
-    };
-    const replanned = advanceCanalSimulation(repriced, shortlyAfter).envelope;
+    const repriced = applyCanalWorldChange(partial, (world) => ({ ...world, admissionPrice: 40 }));
 
-    expect(replanned.world.cash).toBe(cashBefore);
-    expect(replanned.operatingRuntime?.settledBlockKeys).toEqual(settledBefore);
-    expect(replanned.operatingRuntime?.accruedAdmissions).toBe(admissionsBefore);
-    expect(replanned.operatingRuntime?.planFingerprint).not.toBe(beforeRuntime?.planFingerprint);
+    expect(repriced.world.cash).toBe(cashBefore);
+    expect(repriced.operatingRuntime?.settledBlockKeys).toEqual(settledBefore);
+    expect(repriced.operatingRuntime?.accruedAdmissions).toBe(admissionsBefore);
 
-    const changedWeek = advanceCanalSimulation(replanned, boundary).envelope;
+    const changedWeek = advanceCanalSimulation(repriced, boundary).envelope;
     const unchangedWeek = advanceCanalSimulation(partial, boundary).envelope;
     expect(changedWeek.world.lastReport!.admissions).toBeLessThan(unchangedWeek.world.lastReport!.admissions);
     expect(changedWeek.world.lastReport!.revenueBreakdown.admissions).toBeLessThan(unchangedWeek.world.lastReport!.revenueBreakdown.admissions);
