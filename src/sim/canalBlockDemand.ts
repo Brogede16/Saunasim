@@ -76,7 +76,8 @@ function physicalProgramDemandFit(snapshot: GameState) {
   return { multiplier: 1, priceSensitivity: 1 };
 }
 
-function sessionSeatCapacity(snapshot: GameState) {
+/** Canonical guest places for one actually scheduled Gus session in the current physical venue state. */
+export function canalSessionSeatCapacity(snapshot: GameState) {
   const hasProgramSauna = snapshot.built.includes("program");
   const hasYard = snapshot.built.includes("aufguss-yard");
   const hasBenchRefit = snapshot.built.includes("bench-refit");
@@ -163,7 +164,7 @@ export function calculateNativeCanalBlockSpecialSeats(
   );
   const scheduleTiming = evaluateScheduleFit(operatingPlan.effectiveSchedule, snapshot.activeProgram).programTiming;
   const programmeDemand = Math.max(0, Math.round(scheduledSessions * fit.multiplier * basePerSession * scheduleTiming));
-  const specialCapacity = scheduledSessions * sessionSeatCapacity(snapshot);
+  const specialCapacity = scheduledSessions * canalSessionSeatCapacity(snapshot);
   const totalAdmissions = blocks.reduce((sum, block) => sum + block.admissions, 0);
   const hasCapacityUpgrade = snapshot.built.includes("bench-refit") || snapshot.built.includes("program") || snapshot.built.includes("aufguss-yard");
   const spareCapacity = hasCapacityUpgrade ? Math.max(0, Math.min(totalAdmissions, specialCapacity) - programmeDemand) : 0;
