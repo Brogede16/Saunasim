@@ -2,7 +2,7 @@
 
 ## Status
 
-Wave 2 is actively replacing the old weekly aggregate with a chronological, saveable operating simulation. Product truth remains in `MECHANICS.md` and the reconciled decision documents.
+Wave 2 is replacing the old weekly aggregate with a chronological, saveable operating simulation. Product truth remains in `MECHANICS.md` and the reconciled decision documents.
 
 ## Implemented in code
 
@@ -12,134 +12,131 @@ Wave 2 is actively replacing the old weekly aggregate with a chronological, save
 
 - one basic Host function must be covered while the venue operates;
 - the owner may cover one compatible basic Host function for up to 50 hours per game week at no wage cost;
-- owner coverage does not scale past that limit and cannot make 24/7 free;
+- owner coverage cannot make 24/7 free;
 - hired Service Hosts provide additional venue-only coverage;
-- staff allocation is automatic rather than a player-authored rota;
-- uncovered host-hours are explicit and reduce actual operating availability.
+- assignment is automatic, not a player-authored rota;
+- uncovered host-hours reduce actual operating availability.
 
-The 50-hour reference is current compact-venue balance data, not a universal staffing rule for future venues.
+The 50-hour reference is current compact-venue balance data, not a universal staffing rule.
 
 ### Automatic Aufguss scheduling
 
 `src/sim/aufgussScheduler.ts`
 
 - the player requests sessions per game week rather than clock times;
-- the scheduler deterministically places sessions inside staffed opening hours;
+- the scheduler places sessions inside staffed opening hours;
 - one Master cannot overlap themself;
 - program intent influences preferred daypart;
 - sessions spread across open days before stacking;
 - unfilled requests return explicit reasons;
-- short gaps can form one paid Master work block while long gaps create separate work blocks.
+- short gaps can form one paid work block while long gaps create separate work blocks.
 
 `MASTER_MAX_PAID_GAP_HOURS = 2` remains an explicit balance parameter.
 
-### Native per-block ordinary demand
+### Native ordinary and Special Gus demand
 
 `src/sim/canalBlockDemand.ts`
 
-Ordinary attendance is no longer copied from `simulateCanalWeek()` in canonical runtime.
+Canonical runtime no longer copies admissions or Gus attendance from `simulateCanalWeek()`.
 
-- demand is calculated from actual staffed open blocks;
-- block duration matters directly;
-- program intent changes daypart demand;
-- unsupported admission prices reduce demand;
-- current physical offer contributes to the compact-venue demand reference;
-- capacity is bounded against actual operating time;
-- a staffing-truncated 24/7 request cannot generate demand for hours the venue cannot cover;
-- the starter Master reference still reproduces 70 admissions for the canonical 5-day 10:00–20:00 week.
+Ordinary demand uses:
 
-`buildCanalOperatingBlocks()` uses native admissions by default. `legacy-allocation` exists only for migration/parity tests.
+- actual staffed open blocks;
+- block duration and daypart;
+- program intent;
+- admission price resistance;
+- current physical offer;
+- bounded capacity.
 
-### Native per-session Special Gus demand
+Special Gus demand uses:
 
-Special Gus attendance is also block-native in canonical runtime.
+- actual scheduled sessions;
+- actual per-session room capacity;
+- Program Sauna condition where applicable;
+- supplement price;
+- program/venue fit and schedule timing;
+- bounded walk-up fill where upgraded capacity genuinely exists.
 
-- only actually scheduled sessions create Gus capacity;
-- room capacity comes from the current compact room / program sauna / outdoor yard envelope;
-- program-sauna condition can reduce usable capacity;
-- supplement price affects demand;
-- program/venue fit and schedule timing affect demand;
-- spare upgraded capacity can receive bounded walk-up fill;
-- seats are capped by ordinary visitors, session capacity and demand;
-- seats are allocated only to blocks containing scheduled Gus;
-- the starter reference reproduces 14 Special Gus seats from two scheduled sessions.
+The starter reference still reproduces 70 admissions and 14 Special Gus seats for the canonical default week.
+
+`canalSessionSeatCapacity()` is now a shared pure rule so both TypeScript and Swift can derive the physical capacity of an actually scheduled session from venue state.
 
 ### Deterministic daypart operating blocks
 
 `src/sim/canalOperatingBlocks.ts`
 
-Each block captures the facts required to replay its economics without rereading later mutable player state:
+Each block captures the facts required to replay its consequences without rereading later mutable player state:
 
-- day and daypart;
-- start/end/open hours;
+- day/daypart and start/end/open hours;
 - scheduled Gus count;
+- delivered Gus capacity;
 - demand weight;
-- admission price;
-- Gus supplement price;
-- per-session program material cost;
-- ordinary admissions;
-- Special Gus seats;
+- admission and supplement price;
+- program material cost;
+- staff cost;
+- ordinary admissions and Special Gus seats;
 - shop outcome;
 - recovery demand and queue loss.
 
-This makes the block contract directly portable to Swift and safe across midweek save/resume.
+This is the core portable Swift block contract.
 
 ### Native block economy
 
 `src/sim/canalBlockEconomy.ts`
 
-Canonical block economy now owns:
+Canonical blocks own:
 
-- ordinary admission revenue = block admissions × captured admission price;
-- Special Gus revenue = block Special Gus seats × captured supplement price;
-- shop revenue and procurement from actual block visitors;
-- actual assigned staff cost;
-- program material cost = actual scheduled sessions × captured session material cost;
+- admission revenue;
+- Special Gus revenue;
+- shop revenue and procurement;
+- assigned staff cost;
+- program material cost;
 - variable venue/open-hour cost;
 - variable utilities/cleaning cost.
 
-Explicit `legacy-allocation` remains only for migration tests.
+`legacy-allocation` remains only for migration/parity tests.
 
 ### Fixed period obligations
 
 `src/sim/canalPeriodCosts.ts`
 
-Fixed obligations are no longer falsely spread across guest blocks.
+Fixed obligations are not spread falsely across guest blocks. Fixed venue, utilities and facility burdens are charged at the game-week boundary, while operating consequences happen in blocks.
 
-- fixed venue burden is charged at the game-week boundary;
-- fixed utilities/cleaning burden is charged at the game-week boundary;
-- fixed facility burdens are classified explicitly;
-- unavailable/repaired facilities are handled through operational state rather than hidden aggregate shortcuts.
+### Native shop and recovery flow
 
-### Native shop flow
+`src/sim/canalBlockShop.ts` and `src/sim/canalBlockRecovery.ts`
 
-`src/sim/canalBlockShop.ts`
+- shop conversion is derived from actual block visitors, assortment fit and service coverage;
+- automatic replenishment books procurement with the sale;
+- recovery demand is generated by actual Gus use;
+- recovery capacity follows the physical recovery path;
+- queue loss and `Cold recovery` are block outcomes;
+- the weekly report accumulates what actually happened.
 
-- shop demand is derived from visitors in the block;
-- program audience affects assortment fit;
-- service coverage affects conversion;
-- automatic replenishment books procurement alongside the sale;
-- no weekly shop-sales oracle is supplied to canonical blocks.
+### Direct per-block facility wear
 
-### Native recovery pressure
+`src/sim/canalBlockWear.ts`
 
-`src/sim/canalBlockRecovery.ts`
+Wear no longer begins as a weekly budget that is allocated back onto blocks.
 
-- recovery demand is generated by actual Gus use in the block;
-- recovery capacity is tied to the available recovery facility path;
-- queue loss and `Cold recovery` bottleneck are block outcomes;
-- the weekly report accumulates the recovery facts that actually happened.
+- Program Sauna wear is derived directly from the Special Gus seats used in the block;
+- shower/cold-plunge wear is derived directly from recovery demand in the block;
+- unused, out-of-service or actively repaired facilities do not gain new wear;
+- condition changes at the block timestamp;
+- future-only replanning recalculates only future wear and never reapplies settled wear.
+
+The current Canal coefficient is `specialSeats / 5` condition points for Program Sauna and one condition point per recovery-demand unit for the relevant recovery facilities. These remain tunable balance values, not product-level invariants.
 
 ### Persistent in-progress operating week
 
 `src/sim/canalWeekRuntime.ts` and `src/sim/canalRealtime.ts`
 
-- an operating block settles at its canonical block-end timestamp;
-- block operating net changes canonical cash immediately;
-- facility wear changes condition midweek;
-- admissions, Gus seats, shop sales, recovery demand, queue loss, revenue and cost categories accumulate in persistent runtime state;
+- operating blocks settle at canonical block-end timestamps;
+- block operating net changes cash immediately;
+- facility wear changes condition immediately;
+- admissions, Gus seats, delivered Gus capacity, shop sales, recovery demand, queue loss, revenue and cost categories accumulate in persistent runtime state;
 - settled block IDs prevent replay;
-- `lastReport` remains unpublished until the game-week boundary;
+- `lastReport` remains unpublished until the week boundary;
 - construction, repair and recruitment share the same chronological milestone engine;
 - same-timestamp real-time work resolves before weekly settlement.
 
@@ -147,85 +144,94 @@ Fixed obligations are no longer falsely spread across guest blocks.
 
 `src/sim/canalRuntimeReplan.ts` and `src/sim/canalCommands.ts`
 
-The current game week no longer freezes after the first operating block.
-
 - player/domain changes are applied at the already-advanced canonical timestamp through `applyCanalWorldChange()`;
 - settled blocks remain immutable history;
-- accrued cash/accounting is preserved;
-- only future unsettled blocks are rebuilt;
-- price, program, staffing and schedule changes can affect the remaining week without rewriting the past;
-- construction and repair completion use the same future-only replan path inside the chronological engine;
-- already-applied wear is not applied again when the future plan changes.
+- accrued accounting is preserved;
+- only future blocks are rebuilt;
+- price, program, staffing and schedule changes affect only the remaining week;
+- construction and repair completion use the same future-only replan path;
+- already-applied wear is never applied again.
 
-This command-boundary pattern is the intended Swift-core contract: advance time first, apply instantaneous command second, then replan only the future.
+This command-boundary shape is the intended Swift contract: advance time first, apply instantaneous command second, replan only the future.
 
 ### Canonical save/resume
 
-`src/save/canonicalSimulationSave.ts` remains canonical save version 2.
+`src/save/canonicalSimulationSave.ts` remains save version 2.
 
-It persists the in-progress operating runtime, including block-owned price/material/shop/recovery inputs and accumulated recovery state. Early v2 saves remain readable through import normalisation.
+It persists the in-progress runtime, including block-owned prices/materials/shop/recovery/capacity and accumulated recovery/Gus-capacity state. Earlier v2 saves remain readable through import normalisation.
 
-Save/resume therefore cannot replay already-settled revenue, costs, shop sales, recovery pressure or wear.
+Save/resume cannot replay already-settled revenue, costs, shop sales, recovery pressure, Gus capacity or wear.
 
-### Weekly financial report reduced from completed blocks
+### Weekly report reduced from completed blocks
 
-The canonical week boundary no longer takes attendance, revenue, operating costs or net result directly from `simulateCanalWeek()`.
+The game-week boundary no longer takes attendance, revenue, operating costs, recovery or net result from `simulateCanalWeek()`.
 
 - admissions and Gus seats come from completed blocks;
-- shop sales come from completed blocks;
-- recovery demand/queue loss come from completed blocks;
+- delivered Gus capacity comes from completed blocks;
+- Special Gus occupancy is calculated from actual seats / actual delivered capacity;
+- shop sales and recovery pressure come from completed blocks;
 - revenue/cost breakdowns are reduced from block accumulators;
 - operating cash has already moved when the blocks occurred;
-- fixed period obligations and loan repayment remain week-boundary consequences;
+- fixed obligations and loan repayment remain boundary consequences;
 - `netResult` is rebuilt from the causal block/period ledger.
 
-The old planned report currently supplies only not-yet-migrated guest snapshots, narrative signal fields and programme-review details.
+### Guest snapshots and programme review from completed reality
+
+Visible guest samples are now generated only at settlement, after the canonical report exists.
+
+- guest sample size is based on actual completed admissions;
+- guest observations consume actual shop/recovery outcomes;
+- a midweek price/program/staffing change therefore affects the final guest sample through factual results rather than a week-start prediction.
+
+Programme review is also generated at settlement:
+
+- review only exists after a delivered Gus capacity actually occurred;
+- Composition is revealed from the delivered current program;
+- Execution uses the actual Master/program state;
+- Venue Fit receives occupancy derived from completed Gus seats and completed Gus capacity;
+- starter parity currently produces 14 seats / 16 capacity = 88% occupancy.
 
 ## Tests
 
-The current suite covers:
+The suite now covers:
 
-- owner/staff coverage and 24/7 under-coverage;
-- deterministic Gus scheduling and paid Master work blocks;
-- native ordinary demand baseline, price sensitivity and daypart effects;
-- native Gus demand baseline, supplement-price sensitivity and session-only allocation;
-- explicit legacy allocation as a migration control;
-- native ticket/Gus/shop revenue and procurement;
-- native fixed-vs-variable cost ownership;
-- recovery demand and queue loss;
-- block-event revenue/cost/net reduction into the published period report;
+- staffing coverage and 24/7 under-coverage;
+- automatic Gus scheduling and paid Master work blocks;
+- native ordinary demand and price/daypart sensitivity;
+- native Gus demand and supplement-price sensitivity;
+- ticket/Gus/shop economics;
+- fixed-vs-variable cost ownership;
+- recovery pressure and queue loss;
+- direct block wear ownership;
+- block-event revenue/cost/net reduction into the period report;
+- actual Gus-capacity/occupancy reduction for program review;
+- guest sample size tied to actual completed admissions;
 - midweek cash and condition mutation;
-- one-jump offline vs chunked online equivalence;
-- midweek save/resume without replaying settled state;
-- future-only price/program replanning with immutable settled history;
+- one-jump offline vs chunked online equality;
+- midweek save/resume without replay;
+- future-only price/program replanning with immutable history;
 - no duplicate wear after replanning;
-- construction/repair chronology inside the same canonical engine.
+- construction/repair chronology.
 
 ### Portable native parity fixture
 
-`src/sim/fixtures/canal-canonical-week-v2.json` is the current TypeScript-to-Swift canonical week fixture. It advances a real 24-hour game week through staffing, automatic Gus scheduling, native block demand/economy, operating milestones and week settlement.
-
-The fixture is a parity contract, not final balance approval.
+`src/sim/fixtures/canal-canonical-week-v2.json` remains the TypeScript-to-Swift default-week parity fixture. It is a parity contract, not final balance approval.
 
 ## Known transitional limits
 
 Do not mark the complete Wave 2 loop implemented yet.
 
-1. Guest snapshots and visible guest feedback are still generated from the temporary week-reference path rather than from persisted block outcomes.
-2. Programme review copy still inherits temporary weekly-reference fields such as occupancy/context rather than being built solely from completed canonical blocks.
-3. Wear is applied at the correct block timestamps, but its remaining-week quantity is still derived from a weekly wear budget before being distributed causally. A later pass should derive wear directly from each block's actual usage.
-4. The compact Canal scheduler still has one Master and one effective room lane. Multi-room/multi-Master concurrency belongs to the scalable scheduler pass.
-5. The browser schedule control still has an obsolete 16-hour clamp; do not copy it into Swift.
-6. `simulateCanalWeek()` is no longer canonical attendance, shop, recovery or financial truth, but remains a temporary narrative/guest oracle until those final report details are migrated.
-7. Larger venues still need authored simultaneous staffing-function requirements.
-8. Staff overview UI has not been built; domain data exists first.
+1. `OperatingWeekRuntime.plannedReport` still carries legacy narrative/schedule signal fields and a few transparency fields such as walk-up / turned-away context. Core attendance, capacity, economy, shop, recovery, guest sample, review occupancy and wear no longer depend on it.
+2. `simulateCanalWeek()` therefore remains a temporary narrative/reference oracle, not canonical simulation truth.
+3. The compact Canal scheduler still has one Master and one effective room lane. Multi-room/multi-Master concurrency belongs to the scalable scheduler pass.
+4. The browser `gameStore.updateSchedule()` still clamps a day to 16 hours. Canonical mechanics allow 24/7; do not copy the browser clamp into Swift.
+5. Larger venues still need authored simultaneous staffing-function requirements.
+6. Staff overview UI has not been built; the domain data exists first.
 
 ## Next executable slice
 
-1. generate guest snapshots/feedback at settlement from the completed canonical report instead of precomputing them at week-plan creation;
-2. derive programme-review occupancy/context from completed canonical blocks;
-3. remove `plannedReport` from `OperatingWeekRuntime` once no report field depends on it;
-4. replace weekly-budget wear distribution with direct per-block wear formulas;
-5. remove the obsolete 16-hour browser schedule restriction;
-6. expand Swift fixtures with midweek save/resume and changed-price/program scenarios;
-7. then implement the same pure domain contracts in the Swift simulation core.
+1. replace the remaining `plannedReport` narrative/transparency fields with native report composition and remove `plannedReport` from `OperatingWeekRuntime`;
+2. retire `simulateCanalWeek()` from canonical runtime completely while keeping it only as a historical comparison oracle;
+3. remove the obsolete 16-hour browser schedule restriction;
+4. expand portable Swift fixtures with midweek save/resume, repricing and programme-change scenarios;
+5. start the pure Swift simulation-core package against those fixtures before adding more browser-only mechanics.
