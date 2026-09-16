@@ -13,6 +13,7 @@ export type OperatingWeekRuntime = {
   settledBlockKeys: string[];
   accruedAdmissions: number;
   accruedSpecialSeats: number;
+  accruedSpecialCapacity: number;
   accruedShopSales: number;
   accruedRecoveryDemand: number;
   accruedRecoveryQueueLoss: number;
@@ -37,6 +38,7 @@ export function emptyOperatingWeekRuntime(
     settledBlockKeys: [],
     accruedAdmissions: 0,
     accruedSpecialSeats: 0,
+    accruedSpecialCapacity: 0,
     accruedShopSales: 0,
     accruedRecoveryDemand: 0,
     accruedRecoveryQueueLoss: 0,
@@ -66,6 +68,7 @@ export function settleOperatingBlock(runtime: OperatingWeekRuntime, block: Runti
     settledBlockKeys: [...runtime.settledBlockKeys, key],
     accruedAdmissions: runtime.accruedAdmissions + block.admissions,
     accruedSpecialSeats: runtime.accruedSpecialSeats + block.specialSeats,
+    accruedSpecialCapacity: runtime.accruedSpecialCapacity + block.specialCapacity,
     accruedShopSales: runtime.accruedShopSales + block.shopSales,
     accruedRecoveryDemand: runtime.accruedRecoveryDemand + block.recoveryDemand,
     accruedRecoveryQueueLoss: runtime.accruedRecoveryQueueLoss + block.recoveryQueueLoss,
