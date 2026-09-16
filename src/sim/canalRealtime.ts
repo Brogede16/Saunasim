@@ -7,7 +7,7 @@ import {
   type GameState,
   type MaintainableModuleId,
 } from "./game";
-import { conditionWear } from "./maintenance";
+import { calculateCanalBlockWear } from "./canalBlockWear";
 import { evaluateComposition, type ActiveProgram } from "./program";
 import { evaluateProgramDelivery } from "./programEvaluation";
 import { createRngState, type RngState } from "./deterministicRng";
@@ -99,44 +99,15 @@ function calculateLegacyWeekReference(snapshot: GameState) {
   return { operatingPlan, balanceInput, scheduledProgram, report };
 }
 
-function allocateWear(total: number, blocks: RuntimeOperatingBlock[], weightOf: (block: RuntimeOperatingBlock) => number) {
-  if (blocks.length === 0 || total <= 0) return blocks.map(() => 0);
-  const weights = blocks.map((block) => Math.max(0, weightOf(block)));
-  const weightSum = weights.reduce((sum, value) => sum + value, 0);
-  if (weightSum <= 0) return blocks.map((_, index) => index === 0 ? total : 0);
-  const raw = weights.map((weight) => (total * weight) / weightSum);
-  const allocated = raw.map((value) => Math.round(value * 10000) / 10000);
-  const residual = Math.round((total - allocated.reduce((sum, value) => sum + value, 0)) * 10000) / 10000;
-  allocated[allocated.length - 1] = Math.round((allocated[allocated.length - 1] + residual) * 10000) / 10000;
-  return allocated;
-}
-
 function createOperatingRuntime(snapshot: GameState): OperatingWeekRuntime {
   const reference = calculateLegacyWeekReference(snapshot);
   const baseBlocks = allocateCanalBlockEconomy(
     buildCanalOperatingBlocks(snapshot, reference.operatingPlan, reference.report),
     reference.report,
-  ).map((block) => ({ ...block, wear: {} })) as RuntimeOperatingBlock[];
-  const nativeSpecialSeats = baseBlocks.reduce((total, block) => total + block.specialSeats, 0);
-  const nativeRecoveryDemand = baseBlocks.reduce((total, block) => total + block.recoveryDemand, 0);
-
-  for (const id of maintainableModules) {
-    if (!snapshot.built.includes(id) || snapshot.repairTask?.moduleId === id) continue;
-    const totalWear = conditionWear(id, {
-      specialSeats: nativeSpecialSeats,
-      recoveryDemand: nativeRecoveryDemand,
-    });
-    const allocated = allocateWear(
-      totalWear,
-      baseBlocks,
-      id === "program"
-        ? (block) => block.specialSeats
-        : (block) => block.recoveryDemand,
-    );
-    baseBlocks.forEach((block, index) => {
-      if ((allocated[index] ?? 0) > 0) block.wear[id] = allocated[index];
-    });
-  }
+  ).map((block) => ({
+    ...block,
+    wear: calculateCanalBlockWear(snapshot, block),
+  })) as RuntimeOperatingBlock[];
 
   return emptyOperatingWeekRuntime(snapshot.week, reference.report, baseBlocks);
 }
@@ -336,10 +307,6 @@ function reportFromCompletedBlocks(snapshot: RuntimeGameState, runtime: Operatin
     netResult: money(revenue - operatingCosts - loanRepayment),
   };
 
-  // Visible guests are a deterministic sample of the week that actually happened. They are
-  // intentionally created only after completed blocks have produced canonical admissions, shop
-  // use and recovery pressure; a midweek price/program/staff change therefore changes the sample
-  // through the factual final report rather than through a precomputed week-start guess.
   const { balanceInput, scheduledProgram } = operationalBalanceInput(snapshot);
   const guestWeek = simulateGuestWeek(balanceInput, report, snapshot.week, scheduledProgram);
   const revealedProgram: ActiveProgram = snapshot.masterHired
@@ -358,11 +325,8 @@ function reportFromCompletedBlocks(snapshot: RuntimeGameState, runtime: Operatin
 
 /**
  * Finalises the canonical game week after its operating blocks have already happened.
- *
- * Cash and facility wear from settled blocks are not applied twice here. The financial report is
- * reduced from completed blocks plus explicit fixed period obligations. Guest snapshots and the
- * programme delivery review are then generated from completed canonical outcomes. The old planned
- * report now supplies only still-unmigrated narrative signal/schedule-note fields.
+ * Cash and facility wear from settled blocks are not applied twice here. Visible guest samples and
+ * programme review are generated from the completed canonical report, not week-start predictions.
  */
 export function settleLegacyCanalGameWeek(snapshot: RuntimeGameState): RuntimeGameState {
   if (snapshot.financialDecisionPending) return snapshot;
@@ -395,9 +359,6 @@ export function settleLegacyCanalGameWeek(snapshot: RuntimeGameState): RuntimeGa
 const canalRealtimeAdapter: SimulationAdapter<RuntimeGameState> = {
   nextMilestoneAt: nextRealtimeMilestone,
   advanceInterval(world, context) {
-    // Do not freeze a week plan merely because wall time advanced. The plan is persisted only when
-    // the interval reaches an actual operating-block milestone; construction/repair completed
-    // before the first opening block can therefore affect the same game week.
     const runtime = runtimeFor(world);
     if (!runtime || world.__operatingRuntime) return { world, rng: context.rng };
     const reachesOperatingBlock = runtime.plannedBlocks.some(
