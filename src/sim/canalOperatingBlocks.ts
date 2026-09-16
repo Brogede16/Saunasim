@@ -1,10 +1,11 @@
 import type { WeekReport } from "./canalBalance";
-import { calculateNativeCanalBlockAdmissions, calculateNativeCanalBlockSpecialSeats, canalSessionSeatCapacity } from "./canalBlockDemand";
+import { calculateNativeCanalBlockAdmissions, calculateNativeCanalSpecialDemand, canalSessionSeatCapacity } from "./canalBlockDemand";
 import { calculateCanalBlockRecovery } from "./canalBlockRecovery";
 import { calculateCanalBlockShopOutcome } from "./canalBlockShop";
 import type { GameState } from "./game";
 import type { CanalOperatingPlan } from "./canalOperatingPlan";
-import { previewProgram } from "./program";
+import { previewProgram, programSignature } from "./program";
+import type { ShopLine } from "./shop";
 
 export type CanalDaypart = "night" | "morning" | "day" | "evening";
 export type CanalAdmissionMode = "native" | "legacy-allocation";
@@ -17,6 +18,10 @@ export type CanalOperatingBlock = {
   openHours: number;
   scheduledAufguss: number;
   specialCapacity: number;
+  specialDemand: number;
+  walkUpSeats: number;
+  turnedAwayFromGus: number;
+  programSignature: string;
   demandWeight: number;
   admissionPrice: number;
   supplementPrice: number;
@@ -27,6 +32,7 @@ export type CanalOperatingBlock = {
   shopSales: number;
   shopRevenue: number;
   shopProcurement: number;
+  shopLines: ShopLine[];
   recoveryDemand: number;
   recoveryQueueLoss: number;
   recoveryBottleneck?: "Cold recovery";
@@ -97,6 +103,7 @@ export function buildCanalOperatingBlocks(
   const blocks: CanalOperatingBlock[] = [];
   const sessionMaterialCost = previewProgram(snapshot.activeProgram).materialCost;
   const sessionCapacity = canalSessionSeatCapacity(snapshot);
+  const activeProgramSignature = programSignature(snapshot.activeProgram);
 
   for (let dayIndex = 0; dayIndex < openDays; dayIndex += 1) {
     for (const daypart of DAYPARTS) {
@@ -116,6 +123,10 @@ export function buildCanalOperatingBlocks(
         openHours,
         scheduledAufguss,
         specialCapacity: scheduledAufguss * sessionCapacity,
+        specialDemand: 0,
+        walkUpSeats: 0,
+        turnedAwayFromGus: 0,
+        programSignature: activeProgramSignature,
         demandWeight,
         admissionPrice: snapshot.admissionPrice,
         supplementPrice: snapshot.activeProgram.supplementPrice,
@@ -126,6 +137,7 @@ export function buildCanalOperatingBlocks(
         shopSales: 0,
         shopRevenue: 0,
         shopProcurement: 0,
+        shopLines: [],
         recoveryDemand: 0,
         recoveryQueueLoss: 0,
       });
@@ -148,7 +160,7 @@ export function buildCanalOperatingBlocks(
   const blocksWithAdmissions = blocks.map((block, index) => {
     const admissions = admissionAllocations[index] ?? 0;
     const shop = admissionMode === "legacy-allocation"
-      ? { sales: 0, revenue: 0, procurement: 0 }
+      ? { sales: 0, revenue: 0, procurement: 0, lines: [] }
       : calculateCanalBlockShopOutcome(snapshot, admissions);
     return {
       ...block,
@@ -156,25 +168,39 @@ export function buildCanalOperatingBlocks(
       shopSales: shop.sales,
       shopRevenue: shop.revenue,
       shopProcurement: shop.procurement,
+      shopLines: shop.lines,
     };
   });
 
-  const specialAllocations = admissionMode === "legacy-allocation" && ledger?.specialSeats !== undefined
-    ? allocateIntegerTotal(
-        blocksWithAdmissions,
-        ledger.specialSeats,
-        (block) => block.scheduledAufguss > 0 ? block.scheduledAufguss * Math.max(0.25, block.demandWeight) : 0,
-      )
-    : calculateNativeCanalBlockSpecialSeats(snapshot, operatingPlan, blocksWithAdmissions);
+  if (admissionMode === "legacy-allocation" && ledger?.specialSeats !== undefined) {
+    const specialAllocations = allocateIntegerTotal(
+      blocksWithAdmissions,
+      ledger.specialSeats,
+      (block) => block.scheduledAufguss > 0 ? block.scheduledAufguss * Math.max(0.25, block.demandWeight) : 0,
+    );
+    return blocksWithAdmissions.map((block, index) => ({
+      ...block,
+      specialSeats: specialAllocations[index] ?? 0,
+    }));
+  }
+
+  const special = calculateNativeCanalSpecialDemand(snapshot, operatingPlan, blocksWithAdmissions);
+  const sessionWeight = (block: CanalOperatingBlock) => block.scheduledAufguss > 0
+    ? block.scheduledAufguss * Math.max(0.25, block.demandWeight)
+    : 0;
+  const demandByBlock = allocateIntegerTotal(blocksWithAdmissions, special.programmeDemand, sessionWeight);
+  const walkUpsByBlock = allocateIntegerTotal(blocksWithAdmissions, special.walkUpSeats, sessionWeight);
+  const turnedAwayByBlock = allocateIntegerTotal(blocksWithAdmissions, special.turnedAway, sessionWeight);
 
   return blocksWithAdmissions.map((block, index) => {
-    const specialSeats = specialAllocations[index] ?? 0;
-    const recovery = admissionMode === "legacy-allocation"
-      ? { recoveryDemand: 0, queueLoss: 0, bottleneck: undefined }
-      : calculateCanalBlockRecovery(snapshot, { scheduledAufguss: block.scheduledAufguss, specialSeats });
+    const specialSeats = special.seats[index] ?? 0;
+    const recovery = calculateCanalBlockRecovery(snapshot, { scheduledAufguss: block.scheduledAufguss, specialSeats });
     return {
       ...block,
       specialSeats,
+      specialDemand: demandByBlock[index] ?? 0,
+      walkUpSeats: walkUpsByBlock[index] ?? 0,
+      turnedAwayFromGus: turnedAwayByBlock[index] ?? 0,
       recoveryDemand: recovery.recoveryDemand,
       recoveryQueueLoss: recovery.queueLoss,
       recoveryBottleneck: recovery.bottleneck,
@@ -188,6 +214,9 @@ export function summarizeCanalOperatingBlocks(blocks: CanalOperatingBlock[]) {
     admissions: blocks.reduce((total, block) => total + block.admissions, 0),
     specialSeats: blocks.reduce((total, block) => total + block.specialSeats, 0),
     specialCapacity: blocks.reduce((total, block) => total + block.specialCapacity, 0),
+    specialDemand: blocks.reduce((total, block) => total + block.specialDemand, 0),
+    walkUpSeats: blocks.reduce((total, block) => total + block.walkUpSeats, 0),
+    turnedAwayFromGus: blocks.reduce((total, block) => total + block.turnedAwayFromGus, 0),
     scheduledAufguss: blocks.reduce((total, block) => total + block.scheduledAufguss, 0),
     staffCost: Math.round(blocks.reduce((total, block) => total + block.staffCost, 0) * 100) / 100,
     shopSales: blocks.reduce((total, block) => total + block.shopSales, 0),
