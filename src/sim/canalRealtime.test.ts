@@ -63,6 +63,33 @@ describe("Canal canonical realtime bridge", () => {
     );
   });
 
+  it("publishes program-review occupancy from actually delivered Gus capacity", () => {
+    const start = 1_750_000;
+    const boundary = start + REAL_MS_PER_GAME_WEEK;
+    const state = {
+      ...initialState,
+      masterHired: true,
+      master: {
+        name: "Review Master",
+        style: "Traditional" as const,
+        heatCraft: 3,
+        aromaCraft: 3,
+        performanceCraft: 2,
+        weeklyWage: 500,
+        equipment: [],
+      },
+      activeProgram: { ...initialState.activeProgram, requestedSessions: 2 },
+    };
+
+    const result = advanceCanalSimulation(createCanonicalCanalEnvelope(state, start, 31337), boundary).envelope;
+    expect(result.world.lastReport).toMatchObject({
+      specialSeats: 14,
+      specialCapacity: 16,
+      specialOccupancy: 88,
+    });
+    expect(result.world.lastReport?.programReview).toBeDefined();
+  });
+
   it("resolves real-time work before the weekly settlement when both share the boundary timestamp", () => {
     const start = 2_000_000;
     const boundary = start + REAL_MS_PER_GAME_WEEK;
