@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import legacyBaseline from "./fixtures/canal-baseline-v1.json";
 import canonicalBaseline from "./fixtures/canal-canonical-week-v2.json";
 import midweekReprice from "./fixtures/canal-midweek-reprice-v1.json";
+import midweekProgram from "./fixtures/canal-midweek-program-v1.json";
 import { simulateCanalWeek } from "./canalBalance";
 import { advanceCanalSimulation, createCanonicalCanalEnvelope } from "./canalRealtime";
 import { applyCanalWorldChange } from "./canalCommands";
@@ -84,5 +85,40 @@ describe("portable browser-to-native baseline fixtures", () => {
     expect(report.netResult).toBe(midweekReprice.expected.finalNetResult);
     expect(completed.world.cash).toBe(midweekReprice.expected.finalCash);
     expect(completed.operatingRuntime === undefined).toBe(midweekReprice.expected.runtimeClearedAtBoundary);
+  });
+
+  it(midweekProgram.name, () => {
+    const state = stateFromFixture(midweekProgram.input);
+    const startedAt = midweekProgram.canonical.startedAt;
+    const changeAt = startedAt + REAL_MS_PER_GAME_WEEK * midweekProgram.canonical.changeAtFractionOfWeek;
+    const boundary = startedAt + REAL_MS_PER_GAME_WEEK;
+    const partial = advanceCanalSimulation(
+      createCanonicalCanalEnvelope(state, startedAt, midweekProgram.canonical.seed),
+      changeAt,
+    ).envelope;
+
+    expect(partial.operatingRuntime?.settledBlockKeys).toHaveLength(midweekProgram.expected.settledBlocksBeforeCommand);
+    expect(partial.operatingRuntime?.accruedAdmissions).toBe(midweekProgram.expected.accruedAdmissionsBeforeCommand);
+
+    const changed = applyCanalWorldChange(partial, (world) => ({
+      ...world,
+      activeProgram: {
+        ...world.activeProgram,
+        intent: midweekProgram.command.value as "Social Energy",
+      },
+    }));
+    const completed = advanceCanalSimulation(changed, boundary).envelope;
+    const report = completed.world.lastReport!;
+
+    expect(completed.world.week).toBe(midweekProgram.expected.finalWeek);
+    expect(report.admissions).toBe(midweekProgram.expected.finalAdmissions);
+    expect(report.specialSeats).toBe(midweekProgram.expected.finalSpecialSeats);
+    expect(report.revenueBreakdown.admissions).toBe(midweekProgram.expected.finalAdmissionRevenue);
+    expect(report.revenueBreakdown.specialGus).toBe(midweekProgram.expected.finalSpecialRevenue);
+    expect(report.revenue).toBe(midweekProgram.expected.finalRevenue);
+    expect(report.operatingCosts).toBe(midweekProgram.expected.finalOperatingCosts);
+    expect(report.netResult).toBe(midweekProgram.expected.finalNetResult);
+    expect(completed.world.cash).toBe(midweekProgram.expected.finalCash);
+    expect(completed.operatingRuntime === undefined).toBe(midweekProgram.expected.runtimeClearedAtBoundary);
   });
 });
