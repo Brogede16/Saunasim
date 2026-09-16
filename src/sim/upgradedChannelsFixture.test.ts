@@ -24,18 +24,31 @@ describe("shared upgraded channel parity fixture", () => {
         recoveryFinish: input.recoveryFinish as "Cold Plunge",
       },
     };
-    const completed = advanceCanalSimulation(
+    const result = advanceCanalSimulation(
       createCanonicalCanalEnvelope(state, fixture.canonical.startedAt, fixture.canonical.seed),
       fixture.canonical.advanceTo,
-    ).envelope;
+    );
+    const completed = result.envelope;
     const report = completed.world.lastReport!;
+    const settledBlocks = result.events
+      .filter((event) => event.type === "operating-block-settled" && event.detail)
+      .map((event) => JSON.parse(event.detail!) as {
+        specialDemand: number;
+        walkUpSeats: number;
+        turnedAwayFromGus: number;
+      });
+    const specialDemand = settledBlocks.reduce((total, block) => total + block.specialDemand, 0);
+    const walkUpSeats = settledBlocks.reduce((total, block) => total + block.walkUpSeats, 0);
+    const turnedAwayFromGus = settledBlocks.reduce((total, block) => total + block.turnedAwayFromGus, 0);
 
     expect(completed.world.week).toBe(fixture.expected.week);
     expect(completed.world.cash).toBe(fixture.expected.cash);
     expect(report.admissions).toBe(fixture.expected.admissions);
     expect(report.specialSeats).toBe(fixture.expected.specialSeats);
     expect(report.specialCapacity).toBe(fixture.expected.specialCapacity);
-    expect(report.specialDemand).toBe(fixture.expected.specialDemand);
+    expect(specialDemand).toBe(fixture.expected.specialDemand);
+    expect(walkUpSeats).toBe(fixture.expected.walkUpSeats);
+    expect(turnedAwayFromGus).toBe(fixture.expected.turnedAwayFromGus);
     expect(report.walkUpSeats).toBe(fixture.expected.walkUpSeats);
     expect(report.turnedAwayFromGus).toBe(fixture.expected.turnedAwayFromGus);
     expect(report.shopSales).toBe(fixture.expected.shopSales);
