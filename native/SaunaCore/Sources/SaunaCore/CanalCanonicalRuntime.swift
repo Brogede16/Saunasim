@@ -1,5 +1,25 @@
 import Foundation
 
+public struct CanalConstructionProject: Codable, Equatable, Sendable {
+    public var moduleID: String
+    public var completesAt: Int64
+
+    public init(moduleID: String, completesAt: Int64) {
+        self.moduleID = moduleID
+        self.completesAt = completesAt
+    }
+}
+
+public struct CanalRepairTask: Codable, Equatable, Sendable {
+    public var moduleID: String
+    public var completesAt: Int64
+
+    public init(moduleID: String, completesAt: Int64) {
+        self.moduleID = moduleID
+        self.completesAt = completesAt
+    }
+}
+
 public struct CanalCanonicalReport: Codable, Equatable, Sendable {
     public var admissions: Int
     public var specialSeats: Int
@@ -35,6 +55,9 @@ public struct CanalWorldState: Codable, Equatable, Sendable {
     public var program: ActiveProgram
     public var serviceHostCount: Int
     public var loanRepayment: Double
+    public var construction: [CanalConstructionProject]
+    public var condition: [String: Double]
+    public var repairTask: CanalRepairTask?
     public var lastReport: CanalCanonicalReport?
 
     public init(
@@ -47,6 +70,9 @@ public struct CanalWorldState: Codable, Equatable, Sendable {
         program: ActiveProgram = .starter,
         serviceHostCount: Int = 0,
         loanRepayment: Double = 0,
+        construction: [CanalConstructionProject] = [],
+        condition: [String: Double] = [:],
+        repairTask: CanalRepairTask? = nil,
         lastReport: CanalCanonicalReport? = nil
     ) {
         self.cash = cash
@@ -58,13 +84,19 @@ public struct CanalWorldState: Codable, Equatable, Sendable {
         self.program = program
         self.serviceHostCount = serviceHostCount
         self.loanRepayment = loanRepayment
+        self.construction = construction
+        self.condition = condition
+        self.repairTask = repairTask
         self.lastReport = lastReport
     }
 
     public var operatingInput: CanalOperatingInput {
-        CanalOperatingInput(
+        let operationalBuilt = Set(built.filter { id in
+            (condition[id] ?? 100) > 0 && repairTask?.moduleID != id
+        })
+        return CanalOperatingInput(
             cash: cash,
-            built: built,
+            built: operationalBuilt,
             master: master,
             admissionPrice: admissionPrice,
             schedule: schedule,
@@ -162,9 +194,11 @@ public enum CanalCanonicalRuntime {
     private static let adapter = SimulationAdapter<CanalCanonicalState>(
         nextMilestoneAt: { state, after, to, startedAt in
             let runtime = runtimeFor(state)
-            return runtime.plannedBlocks
+            let operating = runtime.plannedBlocks
                 .filter { !runtime.settledBlockKeys.contains($0.key) }
                 .map { CanalRuntimeReplan.blockSettlesAt(startedAt: startedAt, week: runtime.week, block: $0) }
+            let work = state.world.construction.map(\.completesAt) + [state.world.repairTask?.completesAt].compactMap { $0 }
+            return (operating + work)
                 .filter { $0 > after && $0 <= to }
                 .min()
         },
@@ -173,9 +207,44 @@ public enum CanalCanonicalRuntime {
         },
         resolveMilestonesAt: { state, at, rng, startedAt in
             var next = state
-            var runtime = runtimeFor(next)
             var events: [SimulationEvent] = []
+            var operatingInputsChanged = false
 
+            let completedConstruction = next.world.construction.filter { $0.completesAt <= at }
+            if !completedConstruction.isEmpty {
+                for project in completedConstruction {
+                    next.world.built.insert(project.moduleID)
+                    events.append(SimulationEvent(
+                        at: at,
+                        type: "construction-completed",
+                        detail: project.moduleID
+                    ))
+                }
+                next.world.construction.removeAll { $0.completesAt <= at }
+                operatingInputsChanged = true
+            }
+
+            if let repair = next.world.repairTask, repair.completesAt <= at {
+                next.world.condition[repair.moduleID] = 100
+                next.world.repairTask = nil
+                operatingInputsChanged = true
+                events.append(SimulationEvent(
+                    at: at,
+                    type: "repair-completed",
+                    detail: repair.moduleID
+                ))
+            }
+
+            if operatingInputsChanged, let existing = next.operatingRuntime {
+                next.operatingRuntime = CanalRuntimeReplan.replanFuture(
+                    input: next.world.operatingInput,
+                    runtime: existing,
+                    startedAt: startedAt,
+                    at: at
+                )
+            }
+
+            var runtime = runtimeFor(next)
             for block in runtime.plannedBlocks {
                 guard !runtime.settledBlockKeys.contains(block.key) else { continue }
                 let settlesAt = CanalRuntimeReplan.blockSettlesAt(
@@ -198,7 +267,7 @@ public enum CanalCanonicalRuntime {
         resolveGameWeekBoundary: { state, at, rng, _ in
             var next = state
             let runtime = runtimeFor(next)
-            let period = CanalPeriodCosts.calculate(built: next.world.built)
+            let period = CanalPeriodCosts.calculate(built: next.world.operatingInput.built)
             let revenue = money(
                 runtime.accruedRevenue.admissions
                     + runtime.accruedRevenue.specialGus
