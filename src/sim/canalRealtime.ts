@@ -56,6 +56,27 @@ function money(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+/**
+ * Only inputs that can change future venue operation belong here. Cash, reports, loans and ordinary
+ * wear are excluded so settling one block does not recursively rebuild the rest of the week.
+ * Repair state is included because an unavailable facility must re-enter future planning once fixed.
+ */
+function operatingPlanFingerprint(snapshot: GameState) {
+  return JSON.stringify({
+    built: snapshot.built,
+    schedule: snapshot.schedule,
+    admissionPrice: snapshot.admissionPrice,
+    activeProgram: snapshot.activeProgram,
+    masterHired: snapshot.masterHired,
+    master: snapshot.master,
+    hostHired: snapshot.hostHired,
+    serviceHostCount: snapshot.serviceHostCount,
+    shopRange: snapshot.shopRange,
+    repertoire: snapshot.repertoire,
+    repairModule: snapshot.repairTask?.moduleId,
+  });
+}
+
 function calculateLegacyWeekReference(snapshot: GameState) {
   const operatingPlan = planCanalOperations(snapshot);
   const loanRepayment = snapshot.loans.reduce((total, loan) => total + loan.weeklyPayment, 0);
@@ -114,8 +135,9 @@ function allocateWear(total: number, blocks: RuntimeOperatingBlock[], weightOf: 
   return allocated;
 }
 
-function createOperatingRuntime(snapshot: GameState): OperatingWeekRuntime {
+function createOperatingRuntime(snapshot: GameState, previous?: OperatingWeekRuntime): OperatingWeekRuntime {
   const reference = calculateLegacyWeekReference(snapshot);
+  const fingerprint = operatingPlanFingerprint(snapshot);
   const baseBlocks = allocateCanalBlockEconomy(
     buildCanalOperatingBlocks(snapshot, reference.operatingPlan, reference.report),
     reference.report,
@@ -141,7 +163,23 @@ function createOperatingRuntime(snapshot: GameState): OperatingWeekRuntime {
     });
   }
 
-  return emptyOperatingWeekRuntime(snapshot.week, reference.report, baseBlocks);
+  const fresh = emptyOperatingWeekRuntime(snapshot.week, fingerprint, reference.report, baseBlocks);
+  if (!previous || previous.week !== snapshot.week) return fresh;
+
+  // Replanning is prospective. Settled business periods remain factual history and their accrued
+  // state is copied forward; only the still-unsettled plan is replaced.
+  return {
+    ...fresh,
+    settledBlockKeys: previous.settledBlockKeys,
+    accruedAdmissions: previous.accruedAdmissions,
+    accruedSpecialSeats: previous.accruedSpecialSeats,
+    accruedShopSales: previous.accruedShopSales,
+    accruedRecoveryDemand: previous.accruedRecoveryDemand,
+    accruedRecoveryQueueLoss: previous.accruedRecoveryQueueLoss,
+    accruedRevenueBreakdown: previous.accruedRevenueBreakdown,
+    accruedCostBreakdown: previous.accruedCostBreakdown,
+    accruedOperatingNet: previous.accruedOperatingNet,
+  };
 }
 
 function weekStartAt(startedAt: CanonicalTimestamp, gameWeek: number) {
@@ -155,9 +193,12 @@ function operatingBlockSettlesAt(startedAt: CanonicalTimestamp, week: number, bl
 }
 
 function runtimeFor(world: RuntimeGameState) {
-  if (world.__operatingRuntime?.week === world.week) return world.__operatingRuntime;
   if (world.financialDecisionPending) return undefined;
-  return createOperatingRuntime(world);
+  const existing = world.__operatingRuntime;
+  if (!existing || existing.week !== world.week) return createOperatingRuntime(world);
+  const fingerprint = operatingPlanFingerprint(world);
+  if (existing.planFingerprint !== fingerprint) return createOperatingRuntime(world, existing);
+  return existing;
 }
 
 function nextRealtimeMilestone(
@@ -290,9 +331,6 @@ function sumCosts(breakdown: WeekReport["costBreakdown"]) {
 
 function reportFromCompletedBlocks(snapshot: RuntimeGameState, runtime: OperatingWeekRuntime): WeekReport {
   const periodCosts = calculateCanalPeriodCosts(snapshot);
-  const completedBlocks = runtime.plannedBlocks.filter((block) => runtime.settledBlockKeys.includes(operatingBlockKey(block)));
-  const recoveryDemand = completedBlocks.reduce((total, block) => total + block.recoveryDemand, 0);
-  const queueLoss = completedBlocks.reduce((total, block) => total + block.recoveryQueueLoss, 0);
   const costBreakdown: WeekReport["costBreakdown"] = {
     ...runtime.accruedCostBreakdown,
     venueBase: money(runtime.accruedCostBreakdown.venueBase + periodCosts.venueBase),
@@ -307,9 +345,9 @@ function reportFromCompletedBlocks(snapshot: RuntimeGameState, runtime: Operatin
     admissions: runtime.accruedAdmissions,
     specialSeats: runtime.accruedSpecialSeats,
     shopSales: runtime.accruedShopSales,
-    recoveryDemand,
-    queueLoss,
-    bottleneck: queueLoss > 0 ? "Cold recovery" : undefined,
+    recoveryDemand: runtime.accruedRecoveryDemand,
+    queueLoss: runtime.accruedRecoveryQueueLoss,
+    bottleneck: runtime.accruedRecoveryQueueLoss > 0 ? "Cold recovery" : undefined,
     revenueBreakdown: runtime.accruedRevenueBreakdown,
     costBreakdown,
     revenue,
@@ -358,16 +396,16 @@ export function settleLegacyCanalGameWeek(snapshot: RuntimeGameState): RuntimeGa
 const canalRealtimeAdapter: SimulationAdapter<RuntimeGameState> = {
   nextMilestoneAt: nextRealtimeMilestone,
   advanceInterval(world, context) {
-    // Do not freeze a week plan merely because wall time advanced. The plan is persisted only when
-    // the interval reaches an actual operating-block milestone; construction/repair completed
-    // before the first opening block can therefore affect the same game week.
+    // A changed operating input replaces only the prospective plan. Persist that replanned runtime
+    // before the next milestone so online chunks and one-jump offline advancement see the same plan.
     const runtime = runtimeFor(world);
-    if (!runtime || world.__operatingRuntime) return { world, rng: context.rng };
+    if (!runtime) return { world, rng: context.rng };
+    const runtimeChanged = runtime !== world.__operatingRuntime;
     const reachesOperatingBlock = runtime.plannedBlocks.some(
       (block) => operatingBlockSettlesAt(context.startedAt, runtime.week, block) === context.to,
     );
     return {
-      world: reachesOperatingBlock ? { ...world, __operatingRuntime: runtime } : world,
+      world: runtimeChanged || reachesOperatingBlock ? { ...world, __operatingRuntime: runtime } : world,
       rng: context.rng,
     };
   },
