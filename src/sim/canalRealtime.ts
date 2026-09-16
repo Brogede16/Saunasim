@@ -1,4 +1,4 @@
-import { simulateCanalWeek, type WeekReport } from "./canalBalance";
+import type { WeekReport } from "./canalBalance";
 import { simulateGuestWeek } from "./guestWeek";
 import {
   initialState,
@@ -8,14 +8,16 @@ import {
   type MaintainableModuleId,
 } from "./game";
 import { calculateCanalBlockWear } from "./canalBlockWear";
-import { evaluateComposition, type ActiveProgram } from "./program";
+import { evaluateComposition, programSignature, type ActiveProgram } from "./program";
 import { evaluateProgramDelivery } from "./programEvaluation";
 import { createRngState, type RngState } from "./deterministicRng";
 import { planCanalOperations } from "./canalOperatingPlan";
 import { buildCanalOperatingBlocks } from "./canalOperatingBlocks";
 import { allocateCanalBlockEconomy } from "./canalBlockEconomy";
 import { calculateCanalPeriodCosts } from "./canalPeriodCosts";
+import { composeCanalReportNarrative } from "./canalReportNarrative";
 import { replanFutureCanalOperatingRuntime } from "./canalRuntimeReplan";
+import type { ShopLine } from "./shop";
 import {
   emptyOperatingWeekRuntime,
   operatingBlockKey,
@@ -57,59 +59,39 @@ function money(value: number) {
   return Math.round(value * 100) / 100;
 }
 
-function operationalBalanceInput(snapshot: GameState) {
+function operationalGuestInput(snapshot: GameState) {
   const operatingPlan = planCanalOperations(snapshot);
-  const loanRepayment = snapshot.loans.reduce((total, loan) => total + loan.weeklyPayment, 0);
   const unavailable = maintainableModules.filter(
     (id) => (snapshot.condition[id] ?? 100) <= 0 || snapshot.repairTask?.moduleId === id,
   );
   const scheduledProgram = operatingPlan.effectiveRequestedSessions > 0
     ? { ...snapshot.activeProgram, requestedSessions: operatingPlan.effectiveRequestedSessions }
     : snapshot.activeProgram;
-  const balanceInput = {
-    ...snapshot,
-    schedule: operatingPlan.effectiveSchedule,
-    activeProgram: scheduledProgram,
-    brandIdentity: snapshot.repertoire.length,
-    built: snapshot.built.filter((id) => !unavailable.includes(id as MaintainableModuleId)),
-    loanRepayment,
-    masterWage: 0,
+  return {
+    operatingPlan,
+    scheduledProgram,
+    balanceInput: {
+      ...snapshot,
+      schedule: operatingPlan.effectiveSchedule,
+      activeProgram: scheduledProgram,
+      brandIdentity: snapshot.repertoire.length,
+      built: snapshot.built.filter((id) => !unavailable.includes(id as MaintainableModuleId)),
+      loanRepayment: snapshot.loans.reduce((total, loan) => total + loan.weeklyPayment, 0),
+      masterWage: 0,
+    },
   };
-  return { operatingPlan, balanceInput, scheduledProgram };
-}
-
-function calculateLegacyWeekReference(snapshot: GameState) {
-  const { operatingPlan, balanceInput, scheduledProgram } = operationalBalanceInput(snapshot);
-  const legacyLedger = simulateCanalWeek(balanceInput);
-  const staffCostDelta = operatingPlan.staffWage - legacyLedger.costBreakdown.staff;
-  const report: WeekReport = {
-    ...legacyLedger,
-    guestSnapshots: undefined,
-    programReview: undefined,
-    operatingCosts: legacyLedger.operatingCosts + staffCostDelta,
-    netResult: legacyLedger.netResult - staffCostDelta,
-    costBreakdown: { ...legacyLedger.costBreakdown, staff: operatingPlan.staffWage },
-    requestedSessions: snapshot.activeProgram.requestedSessions,
-    feasibleSessions: operatingPlan.aufguss.scheduled.length,
-    signal: operatingPlan.warnings.length
-      ? `${legacyLedger.signal} ${operatingPlan.warnings.join(" ")}`
-      : legacyLedger.signal,
-  };
-
-  return { operatingPlan, balanceInput, scheduledProgram, report };
 }
 
 function createOperatingRuntime(snapshot: GameState): OperatingWeekRuntime {
-  const reference = calculateLegacyWeekReference(snapshot);
+  const operatingPlan = planCanalOperations(snapshot);
   const baseBlocks = allocateCanalBlockEconomy(
-    buildCanalOperatingBlocks(snapshot, reference.operatingPlan, reference.report),
-    reference.report,
+    buildCanalOperatingBlocks(snapshot, operatingPlan),
   ).map((block) => ({
     ...block,
     wear: calculateCanalBlockWear(snapshot, block),
   })) as RuntimeOperatingBlock[];
 
-  return emptyOperatingWeekRuntime(snapshot.week, reference.report, baseBlocks);
+  return emptyOperatingWeekRuntime(snapshot.week, baseBlocks);
 }
 
 function weekStartAt(startedAt: CanonicalTimestamp, gameWeek: number) {
@@ -239,8 +221,13 @@ function resolveRealtimeMilestones(
           admissions: block.admissions,
           specialSeats: block.specialSeats,
           specialCapacity: block.specialCapacity,
+          specialDemand: block.specialDemand,
+          walkUpSeats: block.walkUpSeats,
+          turnedAwayFromGus: block.turnedAwayFromGus,
           scheduledAufguss: block.scheduledAufguss,
+          programSignature: block.programSignature,
           shopSales: block.shopSales,
+          shopLines: block.shopLines,
           recoveryDemand: block.recoveryDemand,
           recoveryQueueLoss: block.recoveryQueueLoss,
           recoveryBottleneck: block.recoveryBottleneck,
@@ -272,7 +259,30 @@ function sumCosts(breakdown: WeekReport["costBreakdown"]) {
   );
 }
 
+function completedBlocks(runtime: OperatingWeekRuntime) {
+  const settled = new Set(runtime.settledBlockKeys);
+  return runtime.plannedBlocks.filter((block) => settled.has(operatingBlockKey(block)));
+}
+
+function aggregateShopLines(blocks: RuntimeOperatingBlock[]): ShopLine[] {
+  const byId = new Map<string, ShopLine>();
+  for (const block of blocks) {
+    for (const line of block.shopLines) {
+      const existing = byId.get(line.itemId);
+      if (existing) {
+        existing.units += line.units;
+        existing.revenue += line.revenue;
+        existing.procurement += line.procurement;
+      } else {
+        byId.set(line.itemId, { ...line });
+      }
+    }
+  }
+  return [...byId.values()];
+}
+
 function reportFromCompletedBlocks(snapshot: RuntimeGameState, runtime: OperatingWeekRuntime): WeekReport {
+  const blocks = completedBlocks(runtime);
   const periodCosts = calculateCanalPeriodCosts(snapshot);
   const costBreakdown: WeekReport["costBreakdown"] = {
     ...runtime.accruedCostBreakdown,
@@ -287,33 +297,63 @@ function reportFromCompletedBlocks(snapshot: RuntimeGameState, runtime: Operatin
   const specialOccupancy = specialCapacity > 0
     ? Math.round((runtime.accruedSpecialSeats / specialCapacity) * 100)
     : undefined;
+  const walkUpSeats = blocks.reduce((total, block) => total + block.walkUpSeats, 0);
+  const turnedAwayFromGus = blocks.reduce((total, block) => total + block.turnedAwayFromGus, 0);
+  const scheduledAufguss = blocks.reduce((total, block) => total + block.scheduledAufguss, 0);
+  const shopLines = aggregateShopLines(blocks);
+  const narrative = composeCanalReportNarrative(snapshot, {
+    admissions: runtime.accruedAdmissions,
+    specialSeats: runtime.accruedSpecialSeats,
+    specialCapacity,
+    specialOccupancy,
+    queueLoss: runtime.accruedRecoveryQueueLoss,
+    netResult: money(revenue - operatingCosts - loanRepayment),
+    walkUpSeats,
+    turnedAwayFromGus,
+  });
+
   const report: WeekReport = {
-    ...runtime.plannedReport,
-    guestSnapshots: undefined,
-    programReview: undefined,
     admissions: runtime.accruedAdmissions,
     specialSeats: runtime.accruedSpecialSeats,
     specialCapacity,
     specialOccupancy,
     shopSales: runtime.accruedShopSales,
-    recoveryDemand: runtime.accruedRecoveryDemand,
-    queueLoss: runtime.accruedRecoveryQueueLoss,
-    bottleneck: runtime.accruedRecoveryQueueLoss > 0 ? "Cold recovery" : undefined,
-    revenueBreakdown: runtime.accruedRevenueBreakdown,
-    costBreakdown,
+    shopLines,
     revenue,
     operatingCosts,
     loanRepayment,
     netResult: money(revenue - operatingCosts - loanRepayment),
+    revenueBreakdown: runtime.accruedRevenueBreakdown,
+    costBreakdown,
+    requestedSessions: narrative.requestedSessions,
+    feasibleSessions: scheduledAufguss,
+    scheduleFit: narrative.scheduleFit,
+    scheduleNote: narrative.scheduleNote,
+    venueDemandNote: narrative.venueDemandNote,
+    signal: narrative.signal,
+    queueLoss: runtime.accruedRecoveryQueueLoss,
+    bottleneck: runtime.accruedRecoveryQueueLoss > 0 ? "Cold recovery" : undefined,
+    recoveryDemand: runtime.accruedRecoveryDemand,
+    walkUpSeats,
+    turnedAwayFromGus,
   };
 
-  const { balanceInput, scheduledProgram } = operationalBalanceInput(snapshot);
+  const { balanceInput, scheduledProgram } = operationalGuestInput(snapshot);
   const guestWeek = simulateGuestWeek(balanceInput, report, snapshot.week, scheduledProgram);
+  const currentProgramSignature = programSignature(snapshot.activeProgram);
+  const currentProgramBlocks = blocks.filter(
+    (block) => block.programSignature === currentProgramSignature && block.scheduledAufguss > 0,
+  );
+  const currentProgramSeats = currentProgramBlocks.reduce((total, block) => total + block.specialSeats, 0);
+  const currentProgramCapacity = currentProgramBlocks.reduce((total, block) => total + block.specialCapacity, 0);
+  const currentProgramOccupancy = currentProgramCapacity > 0
+    ? Math.round((currentProgramSeats / currentProgramCapacity) * 100)
+    : undefined;
   const revealedProgram: ActiveProgram = snapshot.masterHired
     ? { ...snapshot.activeProgram, revealedTier: evaluateComposition(snapshot.activeProgram) }
     : snapshot.activeProgram;
-  const programReview = snapshot.masterHired && specialCapacity > 0
-    ? evaluateProgramDelivery(revealedProgram, snapshot.built, snapshot.master, specialOccupancy ?? 0)
+  const programReview = snapshot.masterHired && currentProgramCapacity > 0
+    ? evaluateProgramDelivery(revealedProgram, snapshot.built, snapshot.master, currentProgramOccupancy ?? 0)
     : undefined;
 
   return {
@@ -323,11 +363,7 @@ function reportFromCompletedBlocks(snapshot: RuntimeGameState, runtime: Operatin
   };
 }
 
-/**
- * Finalises the canonical game week after its operating blocks have already happened.
- * Cash and facility wear from settled blocks are not applied twice here. Visible guest samples and
- * programme review are generated from the completed canonical report, not week-start predictions.
- */
+/** Finalise a canonical game week from completed block history plus fixed period obligations. */
 export function settleLegacyCanalGameWeek(snapshot: RuntimeGameState): RuntimeGameState {
   if (snapshot.financialDecisionPending) return snapshot;
 
