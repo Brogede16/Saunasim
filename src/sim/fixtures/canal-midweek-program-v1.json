@@ -1,0 +1,48 @@
+{
+  "fixtureVersion": 1,
+  "name": "canal-midweek-program-change-after-first-block",
+  "purpose": "Shared TypeScript-to-Swift fixture proving that a program-intent change replans future demand and Gus delivery without rewriting the first settled operating block.",
+  "canonical": {
+    "startedAt": 2500000,
+    "changeAtFractionOfWeek": 0.1,
+    "seed": 65432
+  },
+  "input": {
+    "cash": 3350,
+    "built": [],
+    "masterHired": true,
+    "master": {
+      "name": "Starter Master",
+      "style": "Traditional",
+      "heatCraft": 3,
+      "aromaCraft": 3,
+      "performanceCraft": 2,
+      "weeklyWage": 500,
+      "equipment": []
+    },
+    "admissionPrice": 24,
+    "schedule": {
+      "openDays": 5,
+      "opensAt": 10,
+      "closesAt": 20
+    }
+  },
+  "command": {
+    "type": "setProgramIntent",
+    "value": "Social Energy"
+  },
+  "expected": {
+    "settledBlocksBeforeCommand": 1,
+    "accruedAdmissionsBeforeCommand": 1,
+    "finalWeek": 2,
+    "finalAdmissions": 69,
+    "finalSpecialSeats": 16,
+    "finalAdmissionRevenue": 1656,
+    "finalSpecialRevenue": 112,
+    "finalRevenue": 1768,
+    "finalOperatingCosts": 725,
+    "finalNetResult": 1043,
+    "finalCash": 4393,
+    "runtimeClearedAtBoundary": true
+  }
+}
