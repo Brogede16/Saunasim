@@ -1,5 +1,31 @@
 # Xcode Migration Strategy
 
+## Current native implementation status — 2026-09-16
+
+The migration is now active implementation, not preparation only.
+
+`native/SaunaCore` is a Swift 6 package with no SwiftUI/SpriteKit dependency. It currently contains:
+
+- canonical time constants and week-boundary helpers matching TypeScript;
+- deterministic xorshift32 RNG parity, including named stream forks;
+- a generic chronological simulation engine with milestone-before-week-boundary ordering;
+- Codable operating-block/runtime contracts with idempotent settlement;
+- direct loading of `src/sim/fixtures/canal-canonical-week-v2.json` from XCTest;
+- a first Canal operating-loop port that reproduces the shared starter-week fixture;
+- native daypart operating blocks rather than only weekly aggregate totals;
+- future-only midweek replanning that preserves settled block history and accrued accounting;
+- macOS `swift test` as part of repository CI.
+
+The TypeScript canonical runtime remains the behavior oracle. Do not fork rules independently in Swift. Every additional native system should either consume a shared fixture or add a new TypeScript fixture before claiming parity.
+
+The next native parity targets are:
+
+1. persistent canonical envelope/save-resume with in-progress operating runtime;
+2. a shared midweek repricing fixture proving settled history is immutable;
+3. a shared changed-program fixture;
+4. construction/repair milestones inside the Swift chronological adapter;
+5. then broader Canal shop/recovery/wear parity before any production SwiftUI/SpriteKit work.
+
 ## Goal
 
 Move Sauna Empire toward a native iPhone app using Swift, SwiftUI and SpriteKit without rewriting the entire project at once.
@@ -73,6 +99,8 @@ Implement only:
 - simulation command/result interface.
 
 Definition of done: XCTest can instantiate and mutate a game without launching an app.
+
+**Status:** substantially underway. The package, clock, RNG, block/runtime contracts and chronological engine exist and are CI-tested. A full native `GameState`/command surface is still being expanded system by system.
 
 ### Phase 2 - Models and central data
 
