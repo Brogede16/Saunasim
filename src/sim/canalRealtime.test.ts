@@ -27,6 +27,37 @@ describe("Canal canonical realtime bridge", () => {
     expect(offline.envelope.lastSimulatedAt).toBe(start + REAL_MS_PER_GAME_WEEK);
   });
 
+  it("replans only future blocks when an operating input changes midweek", () => {
+    const start = 1_500_000;
+    const midweek = start + REAL_MS_PER_GAME_WEEK * 0.35;
+    const shortlyAfter = start + REAL_MS_PER_GAME_WEEK * 0.36;
+    const boundary = start + REAL_MS_PER_GAME_WEEK;
+    const initial = createCanonicalCanalEnvelope(initialState, start, 54321);
+    const partial = advanceCanalSimulation(initial, midweek).envelope;
+
+    const beforeRuntime = partial.operatingRuntime;
+    expect(beforeRuntime?.settledBlockKeys.length).toBeGreaterThan(0);
+    const settledBefore = [...(beforeRuntime?.settledBlockKeys ?? [])];
+    const admissionsBefore = beforeRuntime?.accruedAdmissions ?? 0;
+    const cashBefore = partial.world.cash;
+
+    const repriced = {
+      ...partial,
+      world: { ...partial.world, admissionPrice: 40 },
+    };
+    const replanned = advanceCanalSimulation(repriced, shortlyAfter).envelope;
+
+    expect(replanned.world.cash).toBe(cashBefore);
+    expect(replanned.operatingRuntime?.settledBlockKeys).toEqual(settledBefore);
+    expect(replanned.operatingRuntime?.accruedAdmissions).toBe(admissionsBefore);
+    expect(replanned.operatingRuntime?.planFingerprint).not.toBe(beforeRuntime?.planFingerprint);
+
+    const changedWeek = advanceCanalSimulation(replanned, boundary).envelope;
+    const unchangedWeek = advanceCanalSimulation(partial, boundary).envelope;
+    expect(changedWeek.world.lastReport!.admissions).toBeLessThan(unchangedWeek.world.lastReport!.admissions);
+    expect(changedWeek.world.lastReport!.revenueBreakdown.admissions).toBeLessThan(unchangedWeek.world.lastReport!.revenueBreakdown.admissions);
+  });
+
   it("resolves real-time work before the weekly settlement when both share the boundary timestamp", () => {
     const start = 2_000_000;
     const boundary = start + REAL_MS_PER_GAME_WEEK;
