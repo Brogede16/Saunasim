@@ -112,8 +112,32 @@ public enum CanalCanonicalRuntime {
         _ envelope: CanalCanonicalEnvelope,
         value: Double
     ) -> CanalCanonicalEnvelope {
+        applyWorldChange(envelope) { world in
+            var next = world
+            next.admissionPrice = value
+            return next
+        }
+    }
+
+    public static func setProgramIntent(
+        _ envelope: CanalCanonicalEnvelope,
+        value: ProgramIntent
+    ) -> CanalCanonicalEnvelope {
+        applyWorldChange(envelope) { world in
+            var next = world
+            next.program.intent = value
+            return next
+        }
+    }
+
+    /// Instantaneous domain changes happen only after the caller advances to the command time.
+    /// Existing settled history is preserved; only future blocks are rebuilt from the changed world.
+    public static func applyWorldChange(
+        _ envelope: CanalCanonicalEnvelope,
+        change: (CanalWorldState) -> CanalWorldState
+    ) -> CanalCanonicalEnvelope {
         var next = envelope
-        next.world.world.admissionPrice = value
+        next.world.world = change(next.world.world)
         if let runtime = next.world.operatingRuntime {
             next.world.operatingRuntime = CanalRuntimeReplan.replanFuture(
                 input: next.world.world.operatingInput,
