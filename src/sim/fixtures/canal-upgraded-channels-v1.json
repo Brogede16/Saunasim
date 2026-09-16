@@ -1,0 +1,62 @@
+{
+  "fixtureVersion": 1,
+  "name": "canal-upgraded-shop-recovery-wear-week",
+  "purpose": "Shared TypeScript-to-Swift fixture covering upgraded Gus capacity, walk-up fill, shop sales/procurement, cold-recovery pressure and direct condition wear.",
+  "canonical": {
+    "startedAt": 3500000,
+    "advanceTo": 89900000,
+    "seed": 76543
+  },
+  "input": {
+    "cash": 3350,
+    "built": ["program", "shower", "cold-plunge", "shop"],
+    "condition": {
+      "program": 100,
+      "shower": 100,
+      "cold-plunge": 100
+    },
+    "masterHired": true,
+    "master": {
+      "name": "Starter Master",
+      "style": "Traditional",
+      "heatCraft": 3,
+      "aromaCraft": 3,
+      "performanceCraft": 2,
+      "weeklyWage": 500,
+      "equipment": []
+    },
+    "admissionPrice": 24,
+    "schedule": {
+      "openDays": 5,
+      "opensAt": 10,
+      "closesAt": 20
+    },
+    "recoveryFinish": "Cold Plunge"
+  },
+  "expected": {
+    "week": 2,
+    "cash": 4537,
+    "admissions": 82,
+    "specialSeats": 23,
+    "specialCapacity": 48,
+    "specialDemand": 15,
+    "walkUpSeats": 8,
+    "turnedAwayFromGus": 0,
+    "shopSales": 27,
+    "shopRevenue": 282,
+    "shopProcurement": 114,
+    "recoveryDemand": 11,
+    "queueLoss": 2,
+    "admissionRevenue": 1968,
+    "specialRevenue": 161,
+    "revenue": 2411,
+    "operatingCosts": 1224,
+    "netResult": 1187,
+    "condition": {
+      "program": 95.4,
+      "shower": 89,
+      "cold-plunge": 89
+    },
+    "runtimeClearedAtBoundary": true
+  }
+}
