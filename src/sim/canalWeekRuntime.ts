@@ -8,12 +8,16 @@ export type RuntimeOperatingBlock = CanalBlockEconomy & {
 
 export type OperatingWeekRuntime = {
   week: number;
+  /** Fingerprint of the operating inputs used to build the currently planned future blocks. */
+  planFingerprint: string;
   plannedReport: WeekReport;
   plannedBlocks: RuntimeOperatingBlock[];
   settledBlockKeys: string[];
   accruedAdmissions: number;
   accruedSpecialSeats: number;
   accruedShopSales: number;
+  accruedRecoveryDemand: number;
+  accruedRecoveryQueueLoss: number;
   accruedRevenueBreakdown: WeekReport["revenueBreakdown"];
   accruedCostBreakdown: WeekReport["costBreakdown"];
   accruedOperatingNet: number;
@@ -25,17 +29,21 @@ export function operatingBlockKey(block: Pick<RuntimeOperatingBlock, "dayIndex" 
 
 export function emptyOperatingWeekRuntime(
   week: number,
+  planFingerprint: string,
   plannedReport: WeekReport,
   plannedBlocks: RuntimeOperatingBlock[],
 ): OperatingWeekRuntime {
   return {
     week,
+    planFingerprint,
     plannedReport,
     plannedBlocks,
     settledBlockKeys: [],
     accruedAdmissions: 0,
     accruedSpecialSeats: 0,
     accruedShopSales: 0,
+    accruedRecoveryDemand: 0,
+    accruedRecoveryQueueLoss: 0,
     accruedRevenueBreakdown: { admissions: 0, specialGus: 0, shop: 0 },
     accruedCostBreakdown: {
       venueBase: 0,
@@ -63,6 +71,8 @@ export function settleOperatingBlock(runtime: OperatingWeekRuntime, block: Runti
     accruedAdmissions: runtime.accruedAdmissions + block.admissions,
     accruedSpecialSeats: runtime.accruedSpecialSeats + block.specialSeats,
     accruedShopSales: runtime.accruedShopSales + block.shopSales,
+    accruedRecoveryDemand: runtime.accruedRecoveryDemand + block.recoveryDemand,
+    accruedRecoveryQueueLoss: runtime.accruedRecoveryQueueLoss + block.recoveryQueueLoss,
     accruedRevenueBreakdown: {
       admissions: money(runtime.accruedRevenueBreakdown.admissions + block.revenue.admissions),
       specialGus: money(runtime.accruedRevenueBreakdown.specialGus + block.revenue.specialGus),
