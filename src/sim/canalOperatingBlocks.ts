@@ -1,5 +1,5 @@
 import type { WeekReport } from "./canalBalance";
-import { calculateNativeCanalBlockAdmissions, calculateNativeCanalBlockSpecialSeats } from "./canalBlockDemand";
+import { calculateNativeCanalBlockAdmissions, calculateNativeCanalBlockSpecialSeats, canalSessionSeatCapacity } from "./canalBlockDemand";
 import { calculateCanalBlockRecovery } from "./canalBlockRecovery";
 import { calculateCanalBlockShopOutcome } from "./canalBlockShop";
 import type { GameState } from "./game";
@@ -16,6 +16,7 @@ export type CanalOperatingBlock = {
   endsAt: number;
   openHours: number;
   scheduledAufguss: number;
+  specialCapacity: number;
   demandWeight: number;
   admissionPrice: number;
   supplementPrice: number;
@@ -95,6 +96,7 @@ export function buildCanalOperatingBlocks(
   const openDays = Math.max(0, Math.min(7, Math.trunc(schedule.openDays)));
   const blocks: CanalOperatingBlock[] = [];
   const sessionMaterialCost = previewProgram(snapshot.activeProgram).materialCost;
+  const sessionCapacity = canalSessionSeatCapacity(snapshot);
 
   for (let dayIndex = 0; dayIndex < openDays; dayIndex += 1) {
     for (const daypart of DAYPARTS) {
@@ -113,6 +115,7 @@ export function buildCanalOperatingBlocks(
         endsAt,
         openHours,
         scheduledAufguss,
+        specialCapacity: scheduledAufguss * sessionCapacity,
         demandWeight,
         admissionPrice: snapshot.admissionPrice,
         supplementPrice: snapshot.activeProgram.supplementPrice,
@@ -184,6 +187,7 @@ export function summarizeCanalOperatingBlocks(blocks: CanalOperatingBlock[]) {
     openHours: blocks.reduce((total, block) => total + block.openHours, 0),
     admissions: blocks.reduce((total, block) => total + block.admissions, 0),
     specialSeats: blocks.reduce((total, block) => total + block.specialSeats, 0),
+    specialCapacity: blocks.reduce((total, block) => total + block.specialCapacity, 0),
     scheduledAufguss: blocks.reduce((total, block) => total + block.scheduledAufguss, 0),
     staffCost: Math.round(blocks.reduce((total, block) => total + block.staffCost, 0) * 100) / 100,
     shopSales: blocks.reduce((total, block) => total + block.shopSales, 0),
