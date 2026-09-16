@@ -4,6 +4,10 @@ import { REAL_MS_PER_GAME_WEEK } from "./canonicalTime";
 import { advanceCanalSimulation, createCanonicalCanalEnvelope } from "./canalRealtime";
 import { applyCanalWorldChange } from "./canalCommands";
 
+function expectedGuestSampleCount(admissions: number) {
+  return Math.min(8, Math.max(4, Math.ceil(admissions / 12)));
+}
+
 describe("Canal canonical realtime bridge", () => {
   it("produces the same canonical state when 24 hours advance in one offline jump or four online chunks", () => {
     const start = 1_000_000;
@@ -51,6 +55,12 @@ describe("Canal canonical realtime bridge", () => {
     const unchangedWeek = advanceCanalSimulation(partial, boundary).envelope;
     expect(changedWeek.world.lastReport!.admissions).toBeLessThan(unchangedWeek.world.lastReport!.admissions);
     expect(changedWeek.world.lastReport!.revenueBreakdown.admissions).toBeLessThan(unchangedWeek.world.lastReport!.revenueBreakdown.admissions);
+    expect(changedWeek.world.lastReport!.guestSnapshots).toHaveLength(
+      expectedGuestSampleCount(changedWeek.world.lastReport!.admissions),
+    );
+    expect(unchangedWeek.world.lastReport!.guestSnapshots).toHaveLength(
+      expectedGuestSampleCount(unchangedWeek.world.lastReport!.admissions),
+    );
   });
 
   it("resolves real-time work before the weekly settlement when both share the boundary timestamp", () => {
