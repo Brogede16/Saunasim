@@ -33,7 +33,11 @@ public struct CanalWorldState: Codable, Equatable, Sendable {
     public var schedule: VenueSchedule
     public var program: ActiveProgram
     public var serviceHostCount: Int
+    /// Transitional field for old fixtures/saves. New native finance uses `loans`.
     public var loanRepayment: Double
+    public var loans: [CanalLoan]
+    public var profitableWeeks: Int
+    public var financialDecisionPending: Bool
     public var shopRange: [String]
     public var hasBrandIdentity: Bool
     public var construction: [CanalConstructionProject]
@@ -44,21 +48,28 @@ public struct CanalWorldState: Codable, Equatable, Sendable {
     public init(
         cash: Double, week: Int = 1, built: Set<String>, master: MasterProfile?, admissionPrice: Double,
         schedule: VenueSchedule, program: ActiveProgram = .starter, serviceHostCount: Int = 0,
-        loanRepayment: Double = 0, shopRange: [String] = ["cold-water", "sauna-towel", "house-blend"],
+        loanRepayment: Double = 0, loans: [CanalLoan] = [], profitableWeeks: Int = 0,
+        financialDecisionPending: Bool = false,
+        shopRange: [String] = ["cold-water", "sauna-towel", "house-blend"],
         hasBrandIdentity: Bool = false, construction: [CanalConstructionProject] = [],
         condition: [String: Double] = [:], repairTask: CanalRepairTask? = nil, lastReport: CanalCanonicalReport? = nil
     ) {
         self.cash = cash; self.week = week; self.built = built; self.master = master; self.admissionPrice = admissionPrice
         self.schedule = schedule; self.program = program; self.serviceHostCount = serviceHostCount; self.loanRepayment = loanRepayment
+        self.loans = loans; self.profitableWeeks = profitableWeeks; self.financialDecisionPending = financialDecisionPending
         self.shopRange = shopRange; self.hasBrandIdentity = hasBrandIdentity; self.construction = construction; self.condition = condition
         self.repairTask = repairTask; self.lastReport = lastReport
+    }
+
+    public var scheduledLoanRepayment: Double {
+        CanalFinance.scheduledRepayment(loans: loans, legacyRepayment: loanRepayment)
     }
 
     public var operatingInput: CanalOperatingInput {
         let operationalBuilt = Set(built.filter { id in (condition[id] ?? 100) > 0 && repairTask?.moduleID != id })
         return CanalOperatingInput(
             cash: cash, built: operationalBuilt, master: master, admissionPrice: admissionPrice, schedule: schedule,
-            program: program, serviceHostCount: serviceHostCount, loanRepayment: loanRepayment, shopRange: shopRange,
+            program: program, serviceHostCount: serviceHostCount, loanRepayment: scheduledLoanRepayment, shopRange: shopRange,
             hasBrandIdentity: hasBrandIdentity, condition: condition, repairModuleID: repairTask?.moduleID
         )
     }
@@ -85,6 +96,14 @@ public enum CanalCanonicalRuntime {
     public static func setProgramIntent(_ envelope: CanalCanonicalEnvelope, value: ProgramIntent) -> CanalCanonicalEnvelope {
         applyWorldChange(envelope) { var next = $0; next.program.intent = value; return next }
     }
+    public static func takeLoan(_ envelope: CanalCanonicalEnvelope, id: CanalLoanID) -> CanalCanonicalEnvelope? {
+        guard let financed = CanalFinance.take(id, world: envelope.world.world) else { return nil }
+        var next = envelope
+        next.world.world = financed
+        return next
+    }
+    /// Instantaneous domain changes happen only after the caller advances to the command time.
+    /// Existing settled history is preserved; only future blocks are rebuilt from the changed world.
     public static func applyWorldChange(_ envelope: CanalCanonicalEnvelope, change: (CanalWorldState) -> CanalWorldState) -> CanalCanonicalEnvelope {
         var next = envelope
         next.world.world = change(next.world.world)
@@ -127,7 +146,7 @@ public enum CanalCanonicalRuntime {
                 events.append(SimulationEvent(at: at, type: "repair-completed", detail: repair.moduleID))
             }
             if operatingInputsChanged, let existing = next.operatingRuntime {
-                next.operatingRuntime = CanalRuntimeReplan.replanFuture(input: next.world.operatingInput, runtime: existing, startedAt: startedAt, at: at)
+                next.world.operatingRuntime = CanalRuntimeReplan.replanFuture(input: next.world.operatingInput, runtime: existing, startedAt: startedAt, at: at)
             }
 
             var runtime = runtimeFor(next)
@@ -152,9 +171,13 @@ public enum CanalCanonicalRuntime {
             let revenue = money(runtime.accruedRevenue.admissions + runtime.accruedRevenue.specialGus + runtime.accruedRevenue.shop)
             let variableCosts = money(runtime.accruedCosts.venueBase + runtime.accruedCosts.staff + runtime.accruedCosts.utilitiesAndCleaning + runtime.accruedCosts.programMaterials + runtime.accruedCosts.shopProcurement + runtime.accruedCosts.facilities)
             let operatingCosts = money(variableCosts + period.total)
-            let netResult = money(revenue - operatingCosts - next.world.loanRepayment)
-            next.world.cash = money(next.world.cash - period.total - next.world.loanRepayment)
-            next.world.lastReport = CanalCanonicalReport(admissions: runtime.accruedAdmissions, specialSeats: runtime.accruedSpecialSeats, revenue: revenue, operatingCosts: operatingCosts, loanRepayment: next.world.loanRepayment, netResult: netResult)
+            let repayment = next.world.scheduledLoanRepayment
+            let netResult = money(revenue - operatingCosts - repayment)
+            next.world.cash = money(next.world.cash - period.total - repayment)
+            next.world.lastReport = CanalCanonicalReport(admissions: runtime.accruedAdmissions, specialSeats: runtime.accruedSpecialSeats, revenue: revenue, operatingCosts: operatingCosts, loanRepayment: repayment, netResult: netResult)
+            next.world.loans = CanalFinance.advanceLoansAfterSettlement(next.world.loans)
+            next.world.profitableWeeks = netResult > 0 ? next.world.profitableWeeks + 1 : 0
+            next.world.financialDecisionPending = next.world.cash < 0
             next.world.week += 1
             next.operatingRuntime = nil
             return SimulationStepResult(world: next, rng: rng, events: [SimulationEvent(at: at, type: "game-week-settled")])
