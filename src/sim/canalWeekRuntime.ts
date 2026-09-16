@@ -8,8 +8,6 @@ export type RuntimeOperatingBlock = CanalBlockEconomy & {
 
 export type OperatingWeekRuntime = {
   week: number;
-  /** Fingerprint of the operating inputs used to build the currently planned future blocks. */
-  planFingerprint: string;
   plannedReport: WeekReport;
   plannedBlocks: RuntimeOperatingBlock[];
   settledBlockKeys: string[];
@@ -29,13 +27,11 @@ export function operatingBlockKey(block: Pick<RuntimeOperatingBlock, "dayIndex" 
 
 export function emptyOperatingWeekRuntime(
   week: number,
-  planFingerprint: string,
   plannedReport: WeekReport,
   plannedBlocks: RuntimeOperatingBlock[],
 ): OperatingWeekRuntime {
   return {
     week,
-    planFingerprint,
     plannedReport,
     plannedBlocks,
     settledBlockKeys: [],
