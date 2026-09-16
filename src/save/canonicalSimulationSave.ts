@@ -57,12 +57,17 @@ const runtimeBlockSchema = z.object({
 });
 const operatingRuntimeSchema = z.object({
   week: z.number().int().positive(),
+  // Optional so early v2 saves remain readable. Missing fingerprint intentionally forces a
+  // prospective replan on the first resumed advance without replaying settled block accruals.
+  planFingerprint: z.string().optional(),
   plannedReport: z.unknown(),
   plannedBlocks: z.array(runtimeBlockSchema),
   settledBlockKeys: z.array(z.string()),
   accruedAdmissions: z.number().int().nonnegative(),
   accruedSpecialSeats: z.number().int().nonnegative(),
   accruedShopSales: z.number().int().nonnegative().optional(),
+  accruedRecoveryDemand: z.number().int().nonnegative().optional(),
+  accruedRecoveryQueueLoss: z.number().int().nonnegative().optional(),
   accruedRevenueBreakdown: breakdownSchema,
   accruedCostBreakdown: costBreakdownSchema,
   accruedOperatingNet: z.number().finite(),
@@ -102,7 +107,10 @@ export function importCanonicalSimulationSave(serialized: string): CanonicalCana
     const operatingRuntime = parsed.data.operatingRuntime
       ? {
           ...parsed.data.operatingRuntime,
+          planFingerprint: parsed.data.operatingRuntime.planFingerprint ?? "legacy-v2-replan-required",
           accruedShopSales: parsed.data.operatingRuntime.accruedShopSales ?? 0,
+          accruedRecoveryDemand: parsed.data.operatingRuntime.accruedRecoveryDemand ?? 0,
+          accruedRecoveryQueueLoss: parsed.data.operatingRuntime.accruedRecoveryQueueLoss ?? 0,
           plannedBlocks: parsed.data.operatingRuntime.plannedBlocks.map((block) => ({
             ...block,
             admissionPrice: block.admissionPrice ?? world.admissionPrice,
