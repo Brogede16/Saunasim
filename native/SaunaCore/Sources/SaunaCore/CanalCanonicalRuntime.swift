@@ -146,7 +146,7 @@ public enum CanalCanonicalRuntime {
                 events.append(SimulationEvent(at: at, type: "repair-completed", detail: repair.moduleID))
             }
             if operatingInputsChanged, let existing = next.operatingRuntime {
-                next.world.operatingRuntime = CanalRuntimeReplan.replanFuture(input: next.world.operatingInput, runtime: existing, startedAt: startedAt, at: at)
+                next.operatingRuntime = CanalRuntimeReplan.replanFuture(input: next.world.operatingInput, runtime: existing, startedAt: startedAt, at: at)
             }
 
             var runtime = runtimeFor(next)
