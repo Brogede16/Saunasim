@@ -40,45 +40,45 @@ function allocateAmount<T>(items: T[], total: number, weightOf: (item: T) => num
 }
 
 /**
- * Places operating economy into the blocks that caused it.
- *
- * Canonical native mode owns guest revenue, shop revenue/procurement, actual staff cost,
- * per-session programme materials and the variable open-hour portions of venue/utilities cost.
- * Fixed venue/utilities obligations and fixed facility costs are deliberately excluded here and
- * charged at the period boundary. Explicit legacy-allocation mode remains for migration tests.
+ * Places operating economy into the blocks that caused it. Native mode is completely independent
+ * of a weekly ledger. A ledger is accepted only by explicit legacy-allocation tests.
  */
 export function allocateCanalBlockEconomy(
   blocks: CanalOperatingBlock[],
-  ledger: Pick<WeekReport, "revenueBreakdown" | "costBreakdown">,
+  ledger?: Pick<WeekReport, "revenueBreakdown" | "costBreakdown">,
   mode: CanalEconomyMode = "native-operating",
 ): CanalBlockEconomy[] {
+  if (mode === "legacy-allocation" && !ledger) {
+    throw new Error("legacy-allocation requires a weekly ledger");
+  }
+  const legacy = ledger!;
   const admissionRevenue = mode === "legacy-allocation"
-    ? allocateAmount(blocks, ledger.revenueBreakdown.admissions, (block) => block.admissions)
+    ? allocateAmount(blocks, legacy.revenueBreakdown.admissions, (block) => block.admissions)
     : blocks.map((block) => Math.round(block.admissions * block.admissionPrice * 100) / 100);
   const specialRevenue = mode === "legacy-allocation"
-    ? allocateAmount(blocks, ledger.revenueBreakdown.specialGus, (block) => block.specialSeats)
+    ? allocateAmount(blocks, legacy.revenueBreakdown.specialGus, (block) => block.specialSeats)
     : blocks.map((block) => Math.round(block.specialSeats * block.supplementPrice * 100) / 100);
   const shopRevenue = mode === "legacy-allocation"
-    ? allocateAmount(blocks, ledger.revenueBreakdown.shop, (block) => block.admissions)
+    ? allocateAmount(blocks, legacy.revenueBreakdown.shop, (block) => block.admissions)
     : blocks.map((block) => block.shopRevenue);
 
   const venueBase = mode === "legacy-allocation"
-    ? allocateAmount(blocks, ledger.costBreakdown.venueBase, (block) => block.openHours)
+    ? allocateAmount(blocks, legacy.costBreakdown.venueBase, (block) => block.openHours)
     : blocks.map((block) => Math.round(block.openHours * VARIABLE_VENUE_COST_PER_OPEN_HOUR * 100) / 100);
   const staff = mode === "legacy-allocation"
-    ? allocateAmount(blocks, ledger.costBreakdown.staff, (block) => block.openHours + block.scheduledAufguss)
+    ? allocateAmount(blocks, legacy.costBreakdown.staff, (block) => block.openHours + block.scheduledAufguss)
     : blocks.map((block) => block.staffCost);
   const utilities = mode === "legacy-allocation"
-    ? allocateAmount(blocks, ledger.costBreakdown.utilitiesAndCleaning, (block) => block.openHours)
+    ? allocateAmount(blocks, legacy.costBreakdown.utilitiesAndCleaning, (block) => block.openHours)
     : blocks.map((block) => Math.round(block.openHours * VARIABLE_UTILITIES_AND_CLEANING_PER_OPEN_HOUR * 100) / 100);
   const materials = mode === "legacy-allocation"
-    ? allocateAmount(blocks, ledger.costBreakdown.programMaterials, (block) => block.scheduledAufguss)
+    ? allocateAmount(blocks, legacy.costBreakdown.programMaterials, (block) => block.scheduledAufguss)
     : blocks.map((block) => Math.round(block.scheduledAufguss * block.sessionMaterialCost * 100) / 100);
   const shopProcurement = mode === "legacy-allocation"
-    ? allocateAmount(blocks, ledger.costBreakdown.shopProcurement, (block) => block.admissions)
+    ? allocateAmount(blocks, legacy.costBreakdown.shopProcurement, (block) => block.admissions)
     : blocks.map((block) => block.shopProcurement);
   const facilities = mode === "legacy-allocation"
-    ? allocateAmount(blocks, ledger.costBreakdown.facilities, (block) => block.openHours)
+    ? allocateAmount(blocks, legacy.costBreakdown.facilities, (block) => block.openHours)
     : blocks.map(() => 0);
 
   return blocks.map((block, index) => {
